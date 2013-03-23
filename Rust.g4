@@ -40,10 +40,10 @@ nondelim :
   |  DOLLAR
   // Literals 
   |  LIT_INT
-  |  LIT_UINT
-  |  LIT_INT_UNSUFFIXED
+  //|  LIT_UINT
+  //|  LIT_INT_UNSUFFIXED
   |  LIT_FLOAT
-  |  LIT_FLOAT_UNSUFFIXED
+  //|  LIT_FLOAT_UNSUFFIXED
   |  LIT_STR
   // Name components 
   |  IDENT
