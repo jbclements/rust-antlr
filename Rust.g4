@@ -53,8 +53,6 @@ nondelim :
   // |  INTERPOLATED
   |  DOC_COMMENT 
     ;
-    
-WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs, newlines
 
 EQ     : '=' ;
 LE     : '<=' ;
@@ -94,16 +92,13 @@ RBRACE    : '}' ;
 POUND     : '#' ;
 DOLLAR    : '$' ;
 
-// includes both INT and UINT
+// includes both INT and UINT INT_UNSUFFIXED
 LIT_INT   : LIT_CHAR
           | '0x' HEXDIGIT+ INTLIT_TY?
           | '0b' BINDIGIT+ INTLIT_TY?
           | DECDIGIT+ INTLIT_TY?
           ;
 
-/*
-LIT_INT_UNSUFFIXED(i64),
-*/
 // we may need lookahead here; the rust lexer
 // checks whether the char following the . is
 // alpha, dot, or _, and bails if so. Wait... why
@@ -115,9 +110,6 @@ LIT_FLOAT : DECDIGIT+ '.'
           | DECDIGIT+ LITFLOAT_EXP LITFLOAT_TY?
           | DECDIGIT+ LITFLOAT_TY
           ;
-/*
-LIT_FLOAT_UNSUFFIXED(ast::ident),
-*/
 
 LIT_STR : '\"' STRCHAR * '\"' ;
 IDENT : IDSTART IDCONT * ;
@@ -127,7 +119,14 @@ UNDERSCORE : '_' ;
 // but I think that the greedy read will do the "right
 // thing"
 LIFETIME : '\'' IDENT ;
-//    DOC_COMMENT(ast::ident),
+DOC_COMMENT : '///' ~[\n]*
+  | '//!' ~[\n]*;
+
+// HELPER DEFINITIONS:
+
+WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs, newlines
+OTHER_LINE_COMMENT : '//' ~[\n] * -> skip ;
+
 
 // strangely, underscores are allowed anywhere in these?
 BINDIGIT : [0-1_] ;
@@ -138,8 +137,8 @@ LITFLOAT_EXP : [eE] [+-]? DECDIGIT+ ;
 LITFLOAT_TY : 'f' ('32'|'64') ;
 
 ESCAPEDCHAR : 'n' | 'r' | 't' | '\\' | '\'' | '\"'
-            | 'x' HEXDIGIT HEXDIGIT | 'u' HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT
-            | 'U' HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT
+  | 'x' HEXDIGIT HEXDIGIT | 'u' HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT
+  | 'U' HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT
             ;
 
 LIT_CHAR :  '\'\\' ESCAPEDCHAR '\'' | '\'' . '\'' ;
