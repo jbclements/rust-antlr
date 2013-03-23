@@ -72,9 +72,7 @@ NOT   : '!' ;
 TILDE : '~' ;
 BINOP : '<<' | '>>' 
       | [-&|+*/^%];
-/*
-BINOPEQ(binop),
-*/
+BINOPEQ : BINOP '=' ;
 /* Structural symbols */
 AT        : '@' ;
 DOT       : '.' ;
@@ -96,14 +94,28 @@ RBRACE    : '}' ;
 POUND     : '#' ;
 DOLLAR    : '$' ;
 
-LIT_INT   : '\'\\' ESCAPEDCHAR '\'' | '\'' . '\'' ;
-/*
+// includes both INT and UINT
+LIT_INT   : LIT_CHAR
+          | '0x' HEXDIGIT+ INTLIT_TY?
+          | '0b' BINDIGIT+ INTLIT_TY?
+          | DECDIGIT+ INTLIT_TY?
+          ;
 
-// Literals
-LIT_INT(i64, ast::int_ty),
-LIT_UINT(u64, ast::uint_ty),
+/*
 LIT_INT_UNSUFFIXED(i64),
-LIT_FLOAT(ast::ident, ast::float_ty),
+*/
+// we may need lookahead here; the rust lexer
+// checks whether the char following the . is
+// alpha, dot, or _, and bails if so. Wait... why
+// doesn't it just check that there's at least one
+// digit? Perhaps because of the underscore restriction?
+LIT_FLOAT : DECDIGIT+ '.'
+          // nb: digit following . can't be underscore.
+          | DECDIGIT+ '.' [0-9] DECDIGIT* LITFLOAT_EXP? LITFLOAT_TY?
+          | DECDIGIT+ LITFLOAT_EXP LITFLOAT_TY?
+          | DECDIGIT+ LITFLOAT_TY
+          ;
+/*
 LIT_FLOAT_UNSUFFIXED(ast::ident),
 */
 
@@ -117,12 +129,20 @@ UNDERSCORE : '_' ;
 LIFETIME : '\'' IDENT ;
 //    DOC_COMMENT(ast::ident),
 
-HEX : [0-9a-fA-F] ;
+// strangely, underscores are allowed anywhere in these?
+BINDIGIT : [0-1_] ;
+DECDIGIT : [0-9_] ;
+HEXDIGIT : [0-9a-fA-F_] ;
+INTLIT_TY : ('u'|'i') ('8'|'16'|'32'|'64') ;
+LITFLOAT_EXP : [eE] [+-]? DECDIGIT+ ;
+LITFLOAT_TY : 'f' ('32'|'64') ;
 
 ESCAPEDCHAR : 'n' | 'r' | 't' | '\\' | '\'' | '\"'
-            | 'x' HEX HEX | 'u' HEX HEX HEX HEX
-            | 'U' HEX HEX HEX HEX HEX HEX HEX HEX
+            | 'x' HEXDIGIT HEXDIGIT | 'u' HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT
+            | 'U' HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT
             ;
+
+LIT_CHAR :  '\'\\' ESCAPEDCHAR '\'' | '\'' . '\'' ;
 
 STRCHAR : ~[\\\"] | '\\' STRESCAPE ;
 STRESCAPE : '\n' | ESCAPEDCHAR ;
