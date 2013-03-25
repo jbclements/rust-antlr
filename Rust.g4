@@ -1,5 +1,3 @@
-// for now, this is a grammar for rust token-trees.
-// it's still missing numeric constants and all kinds of comments.
 grammar Rust;
 
 import "xidstart" , "xidcont";
