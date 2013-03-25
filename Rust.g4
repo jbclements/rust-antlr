@@ -57,9 +57,6 @@ nondelim :
 EQ     : '=' ;
 LE     : '<=' ;
 LT     : '<';
-/*
-LE,
-*/
 EQEQ : '==' ;
 NE   : '!=' ;
 GE   : '>=' ;
@@ -69,7 +66,7 @@ OROR  : '||' ;
 NOT   : '!' ;
 TILDE : '~' ;
 BINOP : '<<' | '>>' 
-      | [-&|+*/^%];
+      | '*' | [-&|+/^%] ;
 BINOPEQ : BINOP '=' ;
 /* Structural symbols */
 AT        : '@' ;
@@ -111,21 +108,29 @@ LIT_FLOAT : DECDIGIT+ '.'
           | DECDIGIT+ LITFLOAT_TY
           ;
 
-LIT_STR : '\"' STRCHAR * '\"' ;
-IDENT : IDSTART IDCONT * ;
+LIT_STR : '\"' STRCHAR* '\"' ;
+IDENT : IDSTART IDCONT* ;
 UNDERSCORE : '_' ;
 
 // there's potential ambiguity with char constants,
 // but I think that the greedy read will do the "right
 // thing"
 LIFETIME : '\'' IDENT ;
-DOC_COMMENT : '///' ~[\n]*
-  | '//!' ~[\n]*;
+// the not-only-slashes restrictions is a real PITA:
+// must have at least one non-slash char
+DOC_COMMENT : '///' '/' * NON_SLASH_OR_WS ~[\n]*
+  | '///' '/' * [ \r\n\t] ~[ \r\n\t] ~[\n]* 
+  | '//!' ~[\n]*
+    // again, we have to do a funny dance to fence out
+    // only-stars.
+  | '/**' BLOCK_COMMENT_CHAR* ~[*] BLOCK_COMMENT_CHAR* '*/' 
+  | '/*!' BLOCK_COMMENT_CHAR* '*/' ;
 
 // HELPER DEFINITIONS:
 
 WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs, newlines
 OTHER_LINE_COMMENT : '//' ~[\n] * -> skip ;
+OTHER_BLOCK_COMMENT : '/*' BLOCK_COMMENT_CHAR* '*/' -> skip ;
 
 
 // strangely, underscores are allowed anywhere in these?
@@ -148,3 +153,6 @@ STRESCAPE : '\n' | ESCAPEDCHAR ;
 
 IDSTART : [_a-zA-Z]  | XIDSTART ;
 IDCONT : [_a-zA-Z0-9] | XIDCONT ;
+
+NON_SLASH_OR_WS : ~[ \t\r\n/] ;
+BLOCK_COMMENT_CHAR:  (~[\*] | ('*' ~[/])) ;
