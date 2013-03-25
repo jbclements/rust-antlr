@@ -4,13 +4,23 @@ grammar Rust;
 
 import "xidstart" , "xidcont";
 
-prog : tts;
+prog : tt*;
 
+/*
+item : use;
+
+use : USE PATH
+  | USE PATH MOD_SEP STAR
+  | USE PATH MOD_SEP BRACEDELIM ;
+*/
 tts : tt* ;
 tt : nondelim | delimited ;
-delimited : LPAREN tt* RPAREN
-  | LBRACKET tt* RBRACKET
-  | LBRACE tt* RBRACE ;
+delimited : parendelim
+  | bracketdelim
+  | bracedelim;
+parendelim : LPAREN tt* RPAREN ;
+bracketdelim : LBRACKET tt* RBRACKET ;
+bracedelim : LBRACE tt* RBRACE ;
 nondelim : path
     // putting in keywords to simplify things:
   | AS
@@ -60,6 +70,7 @@ nondelim : path
   |  OROR
   |  NOT
   |  TILDE
+  |  STAR
   |  BINOP
   |  BINOPEQ
   // Structural symbols 
@@ -141,9 +152,10 @@ ANDAND : '&&' ;
 OROR  : '||' ;
 NOT   : '!' ;
 TILDE : '~' ;
+STAR : '*' ;
 BINOP : '<<' | '>>' 
-      | '*' | [-&|+/^%] ;
-BINOPEQ : BINOP '=' ;
+      | [-&|+/^%] ;
+BINOPEQ : BINOP '=' | '*=';
 /* Structural symbols */
 AT        : '@' ;
 DOT       : '.' ;
