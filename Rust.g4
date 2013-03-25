@@ -7,8 +7,8 @@ import "xidstart" , "xidcont";
 prog : tt* ;
 tt : nondelim | delimited ;
 delimited : LPAREN tt* RPAREN
-          | LBRACKET tt* RBRACKET
-          | LBRACE tt* RBRACE ;
+  | LBRACKET tt* RBRACKET
+  | LBRACE tt* RBRACE ;
 nondelim :
   // Expression-operator symbols.
      EQ
@@ -123,14 +123,16 @@ DOC_COMMENT : '///' '/' * NON_SLASH_OR_WS ~[\n]*
   | '//!' ~[\n]*
     // again, we have to do a funny dance to fence out
     // only-stars.
-  | '/**' BLOCK_COMMENT_CHAR* ~[*] BLOCK_COMMENT_CHAR* '*/' 
-  | '/*!' BLOCK_COMMENT_CHAR* '*/' ;
+    // CAN'T ABSTRACT OVER BLOCK_CHARS; learned this
+    // the hard way ... :(
+  | '/**' (~[\*] | ('*' ~[/]))* ~[*] (~[\*] | ('*' ~[/]))* '*/' 
+  | '/*!'(~[\*] | ('*' ~[/]))* '*/' ;
 
 // HELPER DEFINITIONS:
 
 WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs, newlines
 OTHER_LINE_COMMENT : '//' ~[\n] * -> skip ;
-OTHER_BLOCK_COMMENT : '/*' BLOCK_COMMENT_CHAR* '*/' -> skip ;
+OTHER_BLOCK_COMMENT : '/*' (~[\*] | ('*' ~[/]))* '*/' -> skip ;
 
 
 // strangely, underscores are allowed anywhere in these?
@@ -155,4 +157,3 @@ IDSTART : [_a-zA-Z]  | XIDSTART ;
 IDCONT : [_a-zA-Z0-9] | XIDCONT ;
 
 NON_SLASH_OR_WS : ~[ \t\r\n/] ;
-BLOCK_COMMENT_CHAR:  (~[\*] | ('*' ~[/])) ;
