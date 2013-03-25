@@ -4,13 +4,50 @@ grammar Rust;
 
 import "xidstart" , "xidcont";
 
-prog : tt* ;
+prog : tts;
+
+tts : tt* ;
 tt : nondelim | delimited ;
 delimited : LPAREN tt* RPAREN
   | LBRACKET tt* RBRACKET
   | LBRACE tt* RBRACE ;
-nondelim :
-    path
+nondelim : path
+    // putting in keywords to simplify things:
+  | AS
+  | ASSERT
+  | BREAK
+  | CONST
+  | COPY
+  | DO
+  | DROP
+  | ELSE
+  | ENUM
+  | EXTERN
+  | FALSE
+  | FN
+  | FOR
+  | IF
+  | IMPL
+  | LET
+  | __LOG
+  | LOOP
+  | MATCH
+  | MOD
+  | MUT
+  | ONCE
+  | PRIV
+  | PUB
+  | PURE
+  | REF
+  | RETURN
+  | STRUCT
+  | SUPER
+  | TRUE
+  | TRAIT
+  | TYPE
+  | UNSAFE
+  | USE
+  | WHILE
   // Expression-operator symbols.
   |  EQ
   |  LT
@@ -55,6 +92,43 @@ nondelim :
   |  DOC_COMMENT ;
 
 path : MOD_SEP? IDENT (MOD_SEP IDENT)* ;
+
+// putting keywords in to simplify things:
+AS : 'as' ;
+ASSERT : 'assert' ;
+BREAK : 'break' ;
+CONST : 'const' ;
+COPY : 'copy' ;
+DO : 'do' ;
+DROP : 'drop' ;
+ELSE : 'else' ;
+ENUM : 'enum' ;
+EXTERN : 'extern' ;
+FALSE : 'false' ;
+FN : 'fn' ;
+FOR : 'for' ;
+IF : 'if' ;
+IMPL : 'impl'   ;
+LET : 'let' ;
+__LOG : '__log' ;
+LOOP : 'loop' ;
+MATCH : 'match' ;
+MOD : 'mod' ;
+MUT : 'mut' ;
+ONCE : 'once' ;
+PRIV : 'priv' ;
+PUB : 'pub' ;
+PURE : 'pure' ;
+REF : 'ref' ;
+RETURN : 'return' ;
+STRUCT : 'struct' ;
+SUPER : 'super' ;
+TRUE : 'true' ;
+TRAIT : 'trait' ;
+TYPE : 'type' ;
+UNSAFE : 'unsafe' ;
+USE : 'use' ;
+WHILE : 'while' ;
 
 EQ     : '=' ;
 LE     : '<=' ;
