@@ -10,8 +10,9 @@ delimited : LPAREN tt* RPAREN
   | LBRACKET tt* RBRACKET
   | LBRACE tt* RBRACE ;
 nondelim :
+    path
   // Expression-operator symbols.
-     EQ
+  |  EQ
   |  LT
   |  LE
   |  EQEQ
@@ -51,8 +52,9 @@ nondelim :
   |  LIFETIME
   // For interpolation
   // |  INTERPOLATED
-  |  DOC_COMMENT 
-    ;
+  |  DOC_COMMENT ;
+
+path : MOD_SEP? IDENT (MOD_SEP IDENT)* ;
 
 EQ     : '=' ;
 LE     : '<=' ;
