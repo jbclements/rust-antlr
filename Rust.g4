@@ -4,16 +4,71 @@ grammar Rust;
 
 import "xidstart" , "xidcont";
 
-prog : tt*;
-
-/*
-item : use;
-
-use : USE PATH
-  | USE PATH MOD_SEP STAR
-  | USE PATH MOD_SEP BRACEDELIM ;
-*/
+// parsing a whole file as a 'tts' should work on current sources.
 tts : tt* ;
+
+// parsing a whole file as a 'prog' will not yet work; 
+prog : inner_attr* mod_item*;
+
+inner_attr : POUND LBRACKET meta_item RBRACKET SEMI ;
+meta_item : IDENT
+  | IDENT EQ lit
+  | IDENT LPAREN meta_item_seq RPAREN
+  | INNER_DOC_COMMENT ;
+meta_item_seq : | meta_item_nonempty_seq ;
+meta_item_nonempty_seq : meta_item
+  | meta_item COMMA meta_item_nonempty_seq ;
+
+// just sketching for now...
+mod_item : (PUB | PRIV)? item_or_view_item ;
+// ignoring the "foreign items allowed" items
+item_or_view_item : (CONST | STATIC) item_const_not_fn
+  | FN IDENT generics // getting loose right here:
+    parendelim RARROW ty bracedelim 
+  ;
+
+item_const_not_fn : STAR STAR STAR STAR STAR ; // not yet implemented.
+
+// from a parser standpoint, it would be simpler just
+// to allow lifetimes and type params to be intermixed.
+generics : LT GT
+  | LT generics_list GT ;
+generics_list : LIFETIME
+  | LIFETIME COMMA generics_list
+  | ty_params ;
+ty_params : ty_param | ty_param COMMA ty_params ;
+ty_param : IDENT | IDENT COLON | IDENT COLON boundseq ;
+boundseq : bound | bound PLUS boundseq ;
+bound : (AMP STATIC)? ty;
+    
+//mod_item : use | trait | struct | type | fundecl | impl | implfor ;
+
+use : USE path SEMI
+  | USE path MOD_SEP STAR SEMI
+  | USE path MOD_SEP bracedelim SEMI ;
+
+trait : PUB? TRAIT IDENT bracedelim;
+struct : PUB? STRUCT IDENT bracedelim;
+type : PUB? TYPE IDENT EQ ty SEMI;
+fundecl : PUB? FN IDENT (LT ty GT)? parendelim RARROW ty bracedelim;
+implfor : PUB? IMPL IDENT FOR ty bracedelim ;
+impl : PUB? IMPL ty bracedelim ;
+
+lit : TRUE
+  | FALSE
+  | LIT_INT
+  | LIT_FLOAT
+  | LIT_STR
+  | LPAREN RPAREN ;
+
+ty : AT ty
+  | path (LT ty GT)?
+  | FN parendelim RARROW ty
+  | parendelim
+  | TILDE ty
+  | bracketdelim ;
+
+// below here it looks pretty good.
 tt : nondelim | delimited ;
 delimited : parendelim
   | bracketdelim
@@ -100,7 +155,8 @@ nondelim : path
   |  LIFETIME
   // For interpolation
   // |  INTERPOLATED
-  |  DOC_COMMENT ;
+  |  OUTER_DOC_COMMENT
+  |  INNER_DOC_COMMENT;
 
 path : MOD_SEP? IDENT (MOD_SEP IDENT)* ;
 
@@ -206,14 +262,14 @@ UNDERSCORE : '_' ;
 LIFETIME : '\'' IDENT ;
 // the not-only-slashes restrictions is a real PITA:
 // must have at least one non-slash char
-DOC_COMMENT : '///' '/' * NON_SLASH_OR_WS ~[\n]*
+OUTER_DOC_COMMENT : '///' '/' * NON_SLASH_OR_WS ~[\n]*
   | '///' '/' * [ \r\n\t] ~[ \r\n\t] ~[\n]* 
-  | '//!' ~[\n]*
     // again, we have to do a funny dance to fence out
     // only-stars.
     // CAN'T ABSTRACT OVER BLOCK_CHARS; learned this
     // the hard way ... :(
-  | '/**' (~[\*] | ('*' ~[/]))* ~[*] (~[\*] | ('*' ~[/]))* '*/' 
+  | '/**' (~[\*] | ('*' ~[/]))* ~[*] (~[\*] | ('*' ~[/]))* '*/' ;
+INNER_DOC_COMMENT : '//!' ~[\n]*
   | '/*!'(~[\*] | ('*' ~[/]))* '*/' ;
 
 // HELPER DEFINITIONS:
