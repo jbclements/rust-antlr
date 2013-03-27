@@ -8,27 +8,91 @@ tts : tt* ;
 // parsing a whole file as a 'prog' will not yet work; 
 prog : inner_attr* mod_item*;
 
-inner_attr : POUND LBRACKET meta_item RBRACKET SEMI ;
+// for now, lumping together all kinds of items: this will
+// be changing soon anyway.
+
+// incomplete! :
+mod_item : outer_attrs (PUB | PRIV)? mod_item_2 ;
+mod_item_2 : const_item
+    // ...
+  | enum_item
+  | USE view_paths SEMI
+  | FN IDENT maybe_generics fn_decl inner_attrs_and_block
+  ;
+
+fn_decl : /* loose */ LPAREN maybe_args RPAREN ret_ty ;
+maybe_args : /* nothing */ | args ;
+args : arg | arg COMMA args ;
+arg : (arg_mode)? (MUT)? pat COLON ty ;
+arg_mode : ANDAND | PLUS ;
+ret_ty : RARROW NOT
+  | RARROW ty
+  | /* nothing */
+  ;
+
+
+
+// not treating _ specially... I don't think I have to.
+pat : AT pat
+  | TILDE pat
+  | AND pat
+  | LPAREN RPAREN
+  | LPAREN pats RPAREN
+  | /* loose */ bracketdelim // vectors
+  | expr_res_no_bar_op (DOTDOT expr_res_no_bar_op)?
+  | REF mutability pat_ident
+  | COPY pat_ident
+  | path
+  | path AT pat
+  | path MOD_SEP generics
+  | path (MOD_SEP generics)? LBRACE pat_fields RBRACE
+  | path (MOD_SEP generics)? LPAREN STAR RPAREN
+  | path (MOD_SEP generics)? LPAREN maybe_pats RPAREN
+  ;
+// I may not be supporting goofy trailing-comma properly here...
+maybe_pats : /* nothing */ | pats ;
+pats : pat | pat COMMA pats ;
+
+const_item : STATIC IDENT COLON ty EQ expr SEMI ;
+enum_item : ENUM IDENT maybe_generics EQ ty SEMI
+  | ENUM IDENT maybe_generics /* loose: */ bracedelim
+  ;
+// at most one common field declaration?
+//enum_def : outer_at// loose:
+//    bracedelim ;
+view_paths : view_path | view_path COMMA view_paths ;
+view_path : MOD? IDENT EQ non_global_path
+  | MOD? non_global_path MOD_SEP LBRACE RBRACE
+  | MOD? non_global_path MOD_SEP LBRACE ident_seq RBRACE
+  | MOD? non_global_path MOD_SEP STAR
+  | MOD? non_global_path
+  ;
+
+// UNIMPLEMENTED:
+inner_attrs_and_block : STAR STAR ;
+ret_ty : STAR STAR ;
+expr_res_no_bar_op : STAR STAR ;
+mutability : STAR STAR ;
+pat_ident : STAR STAR ;
+pat_fields : STAR STAR ;
+
+outer_attrs : /* nothing */ | outer_attr outer_attrs ;
+outer_attr : POUND LBRACKET meta_item RBRACKET
+  | OUTER_DOC_COMMENT ; 
+inner_attr : POUND LBRACKET meta_item RBRACKET SEMI
+  | INNER_DOC_COMMENT ;
 meta_item : IDENT
   | IDENT EQ lit
-  | IDENT LPAREN meta_item_seq RPAREN
-  | INNER_DOC_COMMENT ;
+  | IDENT LPAREN meta_item_seq RPAREN ;
 meta_item_seq : | meta_item_nonempty_seq ;
 meta_item_nonempty_seq : meta_item
   | meta_item COMMA meta_item_nonempty_seq ;
 
-// just sketching for now...
-mod_item : (PUB | PRIV)? item_or_view_item ;
-// ignoring the "foreign items allowed" items
-item_or_view_item : (CONST | STATIC) item_const_not_fn
-  | FN IDENT generics // getting loose right here:
-    parendelim RARROW ty bracedelim 
-  ;
 
-item_const_not_fn : STAR STAR STAR STAR STAR ; // not yet implemented.
 
 // from a parser standpoint, it would be simpler just
 // to allow lifetimes and type params to be intermixed.
+maybe_generics : /* nothing */ | generics ;
 generics : LT GT
   | LT generics_list GT ;
 generics_list : LIFETIME
@@ -38,7 +102,16 @@ ty_params : ty_param | ty_param COMMA ty_params ;
 ty_param : IDENT | IDENT COLON | IDENT COLON boundseq ;
 boundseq : bound | bound PLUS boundseq ;
 bound : (AMP STATIC)? ty;
-    
+
+ident_seq : IDENT | IDENT COMMA ident_seq ;
+
+path : MOD_SEP? non_global_path ;
+non_global_path : IDENT (MOD_SEP IDENT)* ;
+
+
+
+//UNIMPLEMENTED:
+expr : STAR STAR ;
 //mod_item : use | trait | struct | type | fundecl | impl | implfor ;
 
 use : USE path SEMI
@@ -48,7 +121,6 @@ use : USE path SEMI
 trait : PUB? TRAIT IDENT bracedelim;
 struct : PUB? STRUCT IDENT bracedelim;
 type : PUB? TYPE IDENT EQ ty SEMI;
-fundecl : PUB? FN IDENT (LT ty GT)? parendelim RARROW ty bracedelim;
 implfor : PUB? IMPL IDENT FOR ty bracedelim ;
 impl : PUB? IMPL ty bracedelim ;
 
@@ -60,7 +132,7 @@ lit : TRUE
   | LPAREN RPAREN ;
 
 ty : AT ty
-  | path (LT ty GT)?
+  | path maybe_generics
   | FN parendelim RARROW ty
   | parendelim
   | TILDE ty
@@ -74,12 +146,11 @@ delimited : parendelim
 parendelim : LPAREN tt* RPAREN ;
 bracketdelim : LBRACKET tt* RBRACKET ;
 bracedelim : LBRACE tt* RBRACE ;
-nondelim : path
+nondelim :
     // putting in keywords to simplify things:
-  | AS
+    AS
   | ASSERT
   | BREAK
-  | CONST
   | COPY
   | DO
   | DROP
@@ -103,6 +174,7 @@ nondelim : path
   | PURE
   | REF
   | RETURN
+  | STATIC
   | STRUCT
   | SUPER
   | TRUE
@@ -130,7 +202,7 @@ nondelim : path
   |  AT
   |  DOT
   |  DOTDOT
-  |  COMMA
+  |  COMMA 
   |  SEMI
   |  COLON
   |  MOD_SEP
@@ -156,13 +228,10 @@ nondelim : path
   |  OUTER_DOC_COMMENT
   |  INNER_DOC_COMMENT;
 
-path : MOD_SEP? IDENT (MOD_SEP IDENT)* ;
-
 // putting keywords in to simplify things:
 AS : 'as' ;
 ASSERT : 'assert' ;
 BREAK : 'break' ;
-CONST : 'const' ;
 COPY : 'copy' ;
 DO : 'do' ;
 DROP : 'drop' ;
@@ -186,6 +255,7 @@ PUB : 'pub' ;
 PURE : 'pure' ;
 REF : 'ref' ;
 RETURN : 'return' ;
+STATIC : 'static' ;
 STRUCT : 'struct' ;
 SUPER : 'super' ;
 TRUE : 'true' ;
