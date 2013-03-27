@@ -1,0 +1,6 @@
+/**/ oth
+(tts (tt (nondelim (path oth))))
+
+/***/ oth
+(tts (tt (nondelim (path oth))))
+

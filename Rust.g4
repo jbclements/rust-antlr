@@ -274,7 +274,7 @@ INNER_DOC_COMMENT : '//!' ~[\n]*
 
 WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs, newlines
 OTHER_LINE_COMMENT : '//' ~[\n] * -> skip ;
-OTHER_BLOCK_COMMENT : '/*' (~[\*] | ('*' ~[/]))* '*/' -> skip ;
+OTHER_BLOCK_COMMENT : '/*' (~[\*] | ('*'+ ~[/]))* '*'+ '/' -> skip ;
 
 
 // strangely, underscores are allowed anywhere in these?
