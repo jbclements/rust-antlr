@@ -6,11 +6,18 @@
 (display "abc" dev-null)
 ;; try parsing all files in ~/tryrust as tts
 
+;; some files actually aren't lexically legal:
+(define dont-try-list
+  (list #rx"compile-fail/issue-2354.rs$"
+        #rx"compile-fail/issue-3820.rs$"
+        #rx"compile-fail/unbalanced-doublequote.rs$"
+        ;; kills the default jvm heap, sadly:
+        #rx"run-pass/deep-vector2.rs$"))
+
 (time
  (for/sum ([f (in-directory "/Users/clements/tryrust")]
            #:when (regexp-match #px".*\\.rs$" f)
-       ;;[i (in-naturals)]
-       )
+           #:unless (ormap (lambda (pat) (regexp-match pat f)) dont-try-list))
    (match-define (list _1 stdin _2 stderr control)
        (process/ports 
         dev-null
