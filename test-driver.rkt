@@ -8,7 +8,7 @@
 
 (time
  (for/sum ([f (in-directory "/Users/clements/tryrust")]
-           #:when (regexp-match #px".*\\.rs" f)
+           #:when (regexp-match #px".*\\.rs$" f)
        ;;[i (in-naturals)]
        )
    (match-define (list _1 stdin _2 stderr control)
