@@ -16,7 +16,7 @@
         dev-null
         #f
         #f
-        (let ([ans (~a "java org.antlr.v4.runtime.misc.TestRig Rust tts -tree "
+        (let ([ans (~a "java org.antlr.v4.runtime.misc.TestRig Rust tts -tree -encoding UTF-8 "
                        f)])
           (printf "~s\n" ans)
           ans)))
