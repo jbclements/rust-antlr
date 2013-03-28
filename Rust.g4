@@ -364,7 +364,7 @@ ESCAPEDCHAR : 'n' | 'r' | 't' | '\\' | '\'' | '\"'
 
 LIT_CHAR :  '\'\\' ESCAPEDCHAR '\'' | '\'' . '\'' ;
 
-STRCHAR : ~["] | '\\' STRESCAPE ; // " (classic cheap trick to fool colorer)
+STRCHAR : ~[\\"] | '\\' STRESCAPE ; 
 STRESCAPE : '\n' | ESCAPEDCHAR ;
 
 IDSTART : [_a-zA-Z]  | XIDSTART ;
