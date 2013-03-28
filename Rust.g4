@@ -70,7 +70,6 @@ view_path : MOD? IDENT EQ non_global_path
 
 // UNIMPLEMENTED:
 inner_attrs_and_block : STAR STAR ;
-ret_ty : STAR STAR ;
 expr_res_no_bar_op : STAR STAR ;
 mutability : STAR STAR ;
 pat_ident : STAR STAR ;
@@ -228,6 +227,8 @@ nondelim :
   |  OUTER_DOC_COMMENT
   |  INNER_DOC_COMMENT;
 
+outer_doc_comment : OUTER_DOC_COMMENT ;
+
 // putting keywords in to simplify things:
 AS : 'as' ;
 ASSERT : 'assert' ;
@@ -324,6 +325,7 @@ LIT_STR : '\"' STRCHAR* '\"' ;
 IDENT : IDSTART IDCONT* ;
 UNDERSCORE : '_' ;
 
+
 // there's potential ambiguity with char constants,
 // but I think that the greedy read will do the "right
 // thing"
@@ -336,15 +338,15 @@ OUTER_DOC_COMMENT : '///' '/' * NON_SLASH_OR_WS ~[\n]*
     // only-stars.
     // CAN'T ABSTRACT OVER BLOCK_CHARS; learned this
     // the hard way ... :(
-  | '/**' (~[\*] | ('*' ~[/]))* ~[*] (~[\*] | ('*' ~[/]))* '*/' ;
+  | '/**' (~[*] | ('*'+ ~[/]))* ~[*] (~[*] | ('*'+ ~[/]))* '*'+ '/' ;
 INNER_DOC_COMMENT : '//!' ~[\n]*
-  | '/*!'(~[\*] | ('*' ~[/]))* '*/' ;
+  | '/*!'(~[*] | ('*' ~[/]))* '*/' ;
 
 // HELPER DEFINITIONS:
 
 WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs, newlines
 OTHER_LINE_COMMENT : '//' ~[\n] * -> skip ;
-OTHER_BLOCK_COMMENT : '/*' (~[\*] | ('*'+ ~[/]))* '*'+ '/' -> skip ;
+OTHER_BLOCK_COMMENT : '/*' (~[*] | ('*'+ ~[/]))* '*'+ '/' -> skip ;
 
 
 // strangely, underscores are allowed anywhere in these?
@@ -362,7 +364,7 @@ ESCAPEDCHAR : 'n' | 'r' | 't' | '\\' | '\'' | '\"'
 
 LIT_CHAR :  '\'\\' ESCAPEDCHAR '\'' | '\'' . '\'' ;
 
-STRCHAR : ~[\\\"] | '\\' STRESCAPE ;
+STRCHAR : ~["] | '\\' STRESCAPE ; // " (classic cheap trick to fool colorer)
 STRESCAPE : '\n' | ESCAPEDCHAR ;
 
 IDSTART : [_a-zA-Z]  | XIDSTART ;
