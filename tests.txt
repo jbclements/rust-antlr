@@ -4,3 +4,5 @@
 /***/ oth
 (tts (tt (nondelim (path oth))))
 
+/*! ****/ */
+(tts (tt (nondelim /*! ****/)) (tt (nondelim *)) (tt (nondelim /)))

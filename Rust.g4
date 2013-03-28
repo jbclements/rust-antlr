@@ -228,6 +228,7 @@ nondelim :
   |  INNER_DOC_COMMENT;
 
 outer_doc_comment : OUTER_DOC_COMMENT ;
+inner_doc_comment : INNER_DOC_COMMENT ;
 
 // putting keywords in to simplify things:
 AS : 'as' ;
@@ -338,15 +339,15 @@ OUTER_DOC_COMMENT : '///' '/' * NON_SLASH_OR_WS ~[\n]*
     // only-stars.
     // CAN'T ABSTRACT OVER BLOCK_CHARS; learned this
     // the hard way ... :(
-  | '/**' (~[*] | ('*'+ ~[/]))* ~[*] (~[*] | ('*'+ ~[/]))* '*'+ '/' ;
+  | '/**' (~[*] | ('*'+ ~[*/]))* ~[*] (~[*] | ('*'+ ~[*/]))* '*'+ '/' ;
 INNER_DOC_COMMENT : '//!' ~[\n]*
-  | '/*!'(~[*] | ('*' ~[/]))* '*/' ;
+  | '/*!' (~[*] | ('*'+ ~[*/]))* '*'+ '/' ;
 
 // HELPER DEFINITIONS:
 
 WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs, newlines
 OTHER_LINE_COMMENT : '//' ~[\n] * -> skip ;
-OTHER_BLOCK_COMMENT : '/*' (~[*] | ('*'+ ~[/]))* '*'+ '/' -> skip ;
+OTHER_BLOCK_COMMENT : '/*' (~[*] | ('*'+ ~[*/]))* '*'+ '/' -> skip ;
 
 
 // strangely, underscores are allowed anywhere in these?
