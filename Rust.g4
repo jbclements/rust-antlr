@@ -1,7 +1,8 @@
 grammar Rust;
 
-// splitting issues: &&, <<, >>, >>=
+// splitting issues: &&, <<, >>, >>=, ||
 // be more consistent in use of *_list, *_seq, and *s.
+// worry about restrictions, incl. "expr-is-complete"
 
 import "xidstart" , "xidcont";
 
@@ -11,51 +12,54 @@ tts : tt* ;
 // parsing a whole file as a 'prog' will not yet work; 
 prog : inner_attr* mod_item*;
 
-// for now, lumping together all kinds of items: this will
-// be changing soon anyway.
-
-// incomplete! :
-mod_item : outer_attrs mod_item_2
-    // the only use of tts in the prog grammar:
-  | path NOT (IDENT)? parendelim
-  | path NOT (IDENT)? bracedelim;
-
-mod_item_2 : visibility const_item
-  | visibility ENUM IDENT maybe_generic_decls EQ ty SEMI
-  | visibility ENUM IDENT maybe_generic_decls /* loose: */ bracedelim
-  | visibility USE view_paths SEMI
-  | visibility (UNSAFE)? item_fn
-  | visibility IMPL maybe_generic_decls ty impl_body
-  | IMPL maybe_generic_decls trait FOR ty impl_body
-  | visibility MOD IDENT SEMI
-  | visibility MOD IDENT /*loose*/ bracedelim
-  | visibility EXTERN item_fn
-  | visibility EXTERN item_foreign_mod
-  | visibility EXTERN (LIT_STR)? MOD IDENT /*loose*/ bracedelim
-  | visibility EXTERN (LIT_STR)? MOD /*loose*/bracedelim
-  | visibility EXTERN MOD IDENT maybe_meta_item_seq SEMI
-  | visibility STRUCT IDENT maybe_generic_decls /*loose*/ bracedelim
-  | visibility STRUCT IDENT maybe_generic_decls /*loose*/ parendelim
-  | visibility STRUCT IDENT maybe_generic_decls SEMI
-  | visibility TYPE IDENT maybe_generic_decls EQ ty SEMI
-  | visibility TRAIT IDENT maybe_generic_decls (COLON trait_list)? /*loose*/ bracedelim
+// maybe incomplete! :
+mod_item : outer_attrs visibility items_with_visibility
+  | outer_attrs impl_trait_for_type
+  | macro_item ;
+items_with_visibility : const_item
+  | enum_decl
+  | use
+  | (UNSAFE)? item_fn_decl 
+  | impl
+  | mod_decl
+  | EXTERN item_fn_decl
+  | EXTERN item_foreign_mod
+  | EXTERN MOD IDENT maybe_meta_item_seq SEMI
+  | struct_decl
+  | type_decl
+  | trait_decl 
   ;
+mod_decl : MOD IDENT SEMI
+  | MOD IDENT /*loose*/ bracedelim ;
+struct_decl : STRUCT IDENT maybe_generic_decls /*loose*/ bracedelim
+  | STRUCT IDENT maybe_generic_decls /*loose*/ parendelim
+  | STRUCT IDENT maybe_generic_decls SEMI ;
+impl : IMPL maybe_generic_decls ty impl_body ;
+impl_trait_for_type : IMPL maybe_generic_decls trait FOR ty impl_body ;
+type_decl : TYPE IDENT maybe_generic_decls EQ ty SEMI ;
+enum_decl : ENUM IDENT maybe_generic_decls EQ ty SEMI
+  | ENUM IDENT maybe_generic_decls /* loose: */ bracedelim ;
+trait_decl: TRAIT IDENT maybe_generic_decls (COLON trait_list)? /*loose*/ bracedelim ;
+macro_item: path NOT (IDENT)? parendelim
+  | path NOT (IDENT)? bracedelim ;
+use : USE view_paths SEMI ;
+item_fn_decl : FN IDENT maybe_generic_decls LPAREN maybe_args RPAREN ret_ty inner_attrs_and_block ;
+item_foreign_mod :  EXTERN (LIT_STR)? MOD IDENT /*loose*/ bracedelim
+  | EXTERN (LIT_STR)? /*loose*/bracedelim ;
+
+
 visibility : (PUB | PRIV)? ;
 
 trait_list : trait | trait PLUS trait_list ;
 
-// unimplemented
-item_foreign_mod :  STAR STAR;
     
 impl_body : SEMI
   | /*loose*/ bracedelim ;
 
-item_fn : FN IDENT maybe_generic_decls fn_decl inner_attrs_and_block ;
-fn_decl : LPAREN maybe_args RPAREN ret_ty ;
 maybe_args : /* nothing */ | args ;
 args : arg | arg COMMA args ;
 arg : (arg_mode)? (MUT)? pat COLON ty ;
-arg_mode : ANDAND | PLUS ;
+arg_mode : AND AND | PLUS ;
 ret_ty : RARROW NOT
   | RARROW ty
   | /* nothing */
@@ -152,12 +156,44 @@ non_global_path : IDENT (MOD_SEP IDENT)* ;
 
 
 //UNIMPLEMENTED:
-expr : expr_binops EQ expr
-  | expr_binops BINOPEQ expr
-  | expr_binops DARROW expr
-  | expr_binops
+expr : expr_1 EQ expr
+  | expr_1 BINOPEQ expr
+  | expr_1 DARROW expr
+  | expr_1
   ;
-expr_binops : expr_prefix ; // UNIMPLEMENTED: binops_zero ;
+expr_1 : expr_1 OR expr_2
+  | expr_2 ;
+expr_2 : expr_2 AND expr_3
+  | expr_3 ;
+expr_3 : expr_3 EQEQ expr_4
+  | expr_3 NE expr_4
+  | expr_4 ;
+expr_4 : expr_4 LT expr_5
+  | expr_4 LE expr_5
+  | expr_4 GE expr_5
+  | expr_4 GT expr_5
+  | expr_5
+  ;
+// there is no precedence 5 ...
+expr_5 : expr_6;
+expr_6 : expr_6 OR expr_7
+  | expr_7 ;
+expr_7 : expr_7 CARET expr_8
+  | expr_8 ;
+expr_8 : expr_8 AND expr_9
+  | expr_9 ;
+expr_9 : expr_9 LT LT expr_10
+  | expr_9 GT GT expr_10
+  | expr_10 ;
+expr_10 : expr_10 PLUS expr_11
+  | expr_10 MINUS expr_11
+  | expr_11 ;
+expr_11 : expr_11 AS ty
+  | expr_12 ;
+expr_12 : expr_12 STAR expr_prefix
+  | expr_12 DIV expr_prefix
+  | expr_12 REM expr_prefix
+  | expr_prefix ;
 expr_prefix : NOT expr_prefix
   | MINUS expr_prefix
   | STAR expr_prefix
@@ -193,7 +229,6 @@ expr_dot_or_call_suffix : DOT IDENT (MOD_SEP generics)? (/*loose*/parendelim)? e
   | /*loose*/bracketdelim expr_dot_or_call_suffix
   | /* nothing */
   ;
-
 
 
 field_exprs : field_expr field_trailer
@@ -295,6 +330,10 @@ nondelim : AS
   |  AND
   |  PLUS
   |  MINUS
+  |  DIV
+  |  REM
+  |  CARET
+  |  OR
   |  EQ
   |  LT
   |  LE
@@ -302,12 +341,9 @@ nondelim : AS
   |  NE
   |  GE
   |  GT
-  |  ANDAND
-  |  OROR
   |  NOT
   |  TILDE
   |  STAR
-  |  BINOP
   |  BINOPEQ
   // Structural symbols 
   |  AT
@@ -383,6 +419,10 @@ WHILE : 'while' ;
 PLUS   : '+' ;
 AND    : '&' ;
 MINUS  : '-' ;
+DIV    : '/' ;
+REM    : '%' ;
+CARET  : '^' ;
+OR     : '|' ;
 EQ     : '=' ;
 LE     : '<=' ;
 LT     : '<';
@@ -390,13 +430,10 @@ EQEQ : '==' ;
 NE   : '!=' ;
 GE   : '>=' ;
 GT   : '>' ;
-ANDAND : '&&' ;
-OROR  : '||' ;
 NOT   : '!' ;
 TILDE : '~' ;
 STAR : '*' ;
-BINOP : [|/^%] ;
-BINOPEQ : BINOP '=' | '-=' |'*=' | '&=' | '+=' | '<<=' | '>>=' ;
+BINOPEQ : '/=' | '%=' | '^=' | '|=' | '-=' |'*=' | '&=' | '+=' | '<<=' | '>>=' ;
 /* Structural symbols */
 AT        : '@' ;
 DOT       : '.' ;
@@ -464,8 +501,6 @@ WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs, newlines
 OTHER_LINE_COMMENT : '//' ~[\n] * -> skip ;
 OTHER_BLOCK_COMMENT : '/*' (~[*] | ('*'+ ~[*/]))* '*'+ '/' -> skip ;
 
-
-// strangely, underscores are allowed anywhere in these?
 BINDIGIT : [0-1_] ;
 DECDIGIT : [0-9_] ;
 HEXDIGIT : [0-9a-fA-F_] ;
