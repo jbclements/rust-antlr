@@ -7,7 +7,7 @@
 ;; try parsing all files in ~/tryrust as tts
 
 ;; some files actually aren't lexically legal:
-(define dont-try-list
+(define lexer-dont-try-list
   (list #rx"compile-fail/issue-2354.rs$"
         #rx"compile-fail/issue-3820.rs$"
         #rx"compile-fail/unbalanced-doublequote.rs$"
@@ -17,13 +17,14 @@
 (time
  (for/sum ([f (in-directory "/Users/clements/tryrust")]
            #:when (regexp-match #px".*\\.rs$" f)
-           #:unless (ormap (lambda (pat) (regexp-match pat f)) dont-try-list))
+           ;;#:unless (ormap (lambda (pat) (regexp-match pat f)) lexer-dont-try-list)
+           )
    (match-define (list _1 stdin _2 stderr control)
        (process/ports 
         dev-null
         #f
         #f
-        (let ([ans (~a "java org.antlr.v4.runtime.misc.TestRig Rust tts -tree -encoding UTF-8 "
+        (let ([ans (~a "java org.antlr.v4.runtime.misc.TestRig Rust prog -tree -encoding UTF-8 "
                        f)])
           (printf "~s\n" ans)
           ans)))

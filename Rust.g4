@@ -1,5 +1,8 @@
 grammar Rust;
 
+// splitting issues: &&, <<, >>, >>=
+// be more consistent in use of *_list, *_seq, and *s.
+
 import "xidstart" , "xidcont";
 
 // parsing a whole file as a 'tts' should work on current sources.
@@ -12,15 +15,43 @@ prog : inner_attr* mod_item*;
 // be changing soon anyway.
 
 // incomplete! :
-mod_item : outer_attrs (PUB | PRIV)? mod_item_2 ;
-mod_item_2 : const_item
-    // ...
-  | enum_item
-  | USE view_paths SEMI
-  | FN IDENT maybe_generics fn_decl inner_attrs_and_block
-  ;
+mod_item : outer_attrs mod_item_2
+    // the only use of tts in the prog grammar:
+  | path NOT (IDENT)? parendelim
+  | path NOT (IDENT)? bracedelim;
 
-fn_decl : /* loose */ LPAREN maybe_args RPAREN ret_ty ;
+mod_item_2 : visibility const_item
+  | visibility ENUM IDENT maybe_generic_decls EQ ty SEMI
+  | visibility ENUM IDENT maybe_generic_decls /* loose: */ bracedelim
+  | visibility USE view_paths SEMI
+  | visibility (UNSAFE)? item_fn
+  | visibility IMPL maybe_generic_decls ty impl_body
+  | IMPL maybe_generic_decls trait FOR ty impl_body
+  | visibility MOD IDENT SEMI
+  | visibility MOD IDENT /*loose*/ bracedelim
+  | visibility EXTERN item_fn
+  | visibility EXTERN item_foreign_mod
+  | visibility EXTERN (LIT_STR)? MOD IDENT /*loose*/ bracedelim
+  | visibility EXTERN (LIT_STR)? MOD /*loose*/bracedelim
+  | visibility EXTERN MOD IDENT maybe_meta_item_seq SEMI
+  | visibility STRUCT IDENT maybe_generic_decls /*loose*/ bracedelim
+  | visibility STRUCT IDENT maybe_generic_decls /*loose*/ parendelim
+  | visibility STRUCT IDENT maybe_generic_decls SEMI
+  | visibility TYPE IDENT maybe_generic_decls EQ ty SEMI
+  | visibility TRAIT IDENT maybe_generic_decls (COLON trait_list)? /*loose*/ bracedelim
+  ;
+visibility : (PUB | PRIV)? ;
+
+trait_list : trait | trait PLUS trait_list ;
+
+// unimplemented
+item_foreign_mod :  STAR STAR;
+    
+impl_body : SEMI
+  | /*loose*/ bracedelim ;
+
+item_fn : FN IDENT maybe_generic_decls fn_decl inner_attrs_and_block ;
+fn_decl : LPAREN maybe_args RPAREN ret_ty ;
 maybe_args : /* nothing */ | args ;
 args : arg | arg COMMA args ;
 arg : (arg_mode)? (MUT)? pat COLON ty ;
@@ -29,8 +60,11 @@ ret_ty : RARROW NOT
   | RARROW ty
   | /* nothing */
   ;
+maybe_tylike_args : /*nothing*/ | tylike_args ;
+tylike_args : tylike_arg | tylike_arg COMMA tylike_args ;
+tylike_arg : arg | ty ;
 
-
+inner_attrs_and_block : /*loose*/ LBRACE inner_attr* tt* RBRACE ;
 
 // not treating _ specially... I don't think I have to.
 pat : AT pat
@@ -49,14 +83,11 @@ pat : AT pat
   | path (MOD_SEP generics)? LPAREN STAR RPAREN
   | path (MOD_SEP generics)? LPAREN maybe_pats RPAREN
   ;
-// I may not be supporting goofy trailing-comma properly here...
 maybe_pats : /* nothing */ | pats ;
-pats : pat | pat COMMA pats ;
+pats : pat (COMMA)? | pat COMMA pats ;
 
 const_item : STATIC IDENT COLON ty EQ expr SEMI ;
-enum_item : ENUM IDENT maybe_generics EQ ty SEMI
-  | ENUM IDENT maybe_generics /* loose: */ bracedelim
-  ;
+
 // at most one common field declaration?
 //enum_def : outer_at// loose:
 //    bracedelim ;
@@ -68,10 +99,10 @@ view_path : MOD? IDENT EQ non_global_path
   | MOD? non_global_path
   ;
 
+mutability : MUT | CONST | /*nothing*/ ;
+
 // UNIMPLEMENTED:
-inner_attrs_and_block : STAR STAR ;
 expr_res_no_bar_op : STAR STAR ;
-mutability : STAR STAR ;
 pat_ident : STAR STAR ;
 pat_fields : STAR STAR ;
 
@@ -86,21 +117,32 @@ meta_item : IDENT
 meta_item_seq : | meta_item_nonempty_seq ;
 meta_item_nonempty_seq : meta_item
   | meta_item COMMA meta_item_nonempty_seq ;
+maybe_meta_item_seq : /*nothing*/ | LPAREN meta_item_seq RPAREN;
 
 
 
 // from a parser standpoint, it would be simpler just
 // to allow lifetimes and type params to be intermixed.
+maybe_generic_decls : /* nothing */ | generic_decls ;
+generic_decls : LT GT
+  | LT generic_decls_list GT ;
+generic_decls_list : LIFETIME
+  | LIFETIME COMMA generic_decls_list
+  | ty_params ;
+ty_params : ty_param | ty_param COMMA ty_params ;
+ty_param : IDENT | IDENT COLON | IDENT COLON boundseq ;
+boundseq : bound | bound PLUS boundseq ;
+bound : (AND STATIC)? ty;
+
 maybe_generics : /* nothing */ | generics ;
 generics : LT GT
   | LT generics_list GT ;
 generics_list : LIFETIME
   | LIFETIME COMMA generics_list
-  | ty_params ;
-ty_params : ty_param | ty_param COMMA ty_params ;
-ty_param : IDENT | IDENT COLON | IDENT COLON boundseq ;
-boundseq : bound | bound PLUS boundseq ;
-bound : (AMP STATIC)? ty;
+  | ty_seq ;
+
+maybe_lifetimes : /*nothing*/ | lifetimes ;
+lifetimes : LIFETIME | LIFETIME COMMA lifetimes ;
 
 ident_seq : IDENT | IDENT COMMA ident_seq ;
 
@@ -110,18 +152,64 @@ non_global_path : IDENT (MOD_SEP IDENT)* ;
 
 
 //UNIMPLEMENTED:
-expr : STAR STAR ;
-//mod_item : use | trait | struct | type | fundecl | impl | implfor ;
+expr : expr_binops EQ expr
+  | expr_binops BINOPEQ expr
+  | expr_binops DARROW expr
+  | expr_binops
+  ;
+expr_binops : expr_prefix ; // UNIMPLEMENTED: binops_zero ;
+expr_prefix : NOT expr_prefix
+  | MINUS expr_prefix
+  | STAR expr_prefix
+  | AND (LIFETIME)? mutability expr_prefix
+  | AT (MUT)? expr_prefix
+  | TILDE expr_prefix
+  | expr_dot_or_call
+  ;
+expr_dot_or_call : expr_bottom expr_dot_or_call_suffix ;
+expr_bottom : /*loose*/ parendelim
+  | /*loose*/ bracedelim
+    /* unimplemented
+  | expr_lambda
+  | expr_if
+  | expr_for
+  | expr_do
+  | expr_while
+  | expr_loop
+  | expr_match
+  | expr_unsafe_block */
+  | /*loose*/ bracketdelim
+  | __LOG LPAREN expr COMMA expr RPAREN
+  | RETURN expr
+  | BREAK (IDENT)?
+  | COPY expr
+  | expr_macro_invocation
+  | path_with_tps LBRACE field_exprs RBRACE
+  | path_with_tps
+  | lit
+  ;
+expr_dot_or_call_suffix : DOT IDENT (MOD_SEP generics)? (/*loose*/parendelim)? expr_dot_or_call_suffix
+  | /*loose*/parendelim expr_dot_or_call_suffix
+  | /*loose*/bracketdelim expr_dot_or_call_suffix
+  | /* nothing */
+  ;
 
-use : USE path SEMI
-  | USE path MOD_SEP STAR SEMI
-  | USE path MOD_SEP bracedelim SEMI ;
 
-trait : PUB? TRAIT IDENT bracedelim;
-struct : PUB? STRUCT IDENT bracedelim;
-type : PUB? TYPE IDENT EQ ty SEMI;
-implfor : PUB? IMPL IDENT FOR ty bracedelim ;
-impl : PUB? IMPL ty bracedelim ;
+
+field_exprs : field_expr field_trailer
+  | field_expr COMMA field_exprs ;
+field_trailer : DOTDOT expr
+  | COMMA
+  | /* nothing */
+  ;
+// unimplemented
+field_expr : STAR STAR ;
+
+expr_macro_invocation :
+    path_with_tps NOT parendelim
+  | path_with_tps NOT bracedelim ;
+
+path_with_tps : path maybe_generics ;
 
 lit : TRUE
   | FALSE
@@ -130,14 +218,34 @@ lit : TRUE
   | LIT_STR
   | LPAREN RPAREN ;
 
-ty : AT ty
+// trait : ty that gets parsed as a ty_path
+// BUG IN PARSER: (A) parses as a trait.
+trait : path maybe_generics ;
+ty : LPAREN RPAREN
+  | LPAREN ty RPAREN
+  | LPAREN ty COMMA RPAREN
+  | LPAREN ty_seq RPAREN
+  | AT box_or_uniq_pointee
+  | TILDE box_or_uniq_pointee
+  | STAR mutability ty
   | path maybe_generics
-  | FN parendelim RARROW ty
-  | parendelim
-  | TILDE ty
-  | bracketdelim ;
+  | LBRACKET ty COMMA DOTDOT expr RBRACKET
+  | LBRACKET ty RBRACKET
+  | AND borrowed_pointee
+    // something going in here re: ABI
+  | EXTERN (UNSAFE)? FN maybe_lifetimes LPAREN maybe_tylike_args RPAREN ret_ty
+  | ty_closure
+  | path maybe_generics
+  ;
+ty_seq : ty | ty COMMA ty_seq ;
+box_or_uniq_pointee : (LIFETIME)? ty_closure
+  | mutability ty ;
+borrowed_pointee : (LIFETIME)? ty_closure
+  | (LIFETIME)? mutability ty ;
+ty_closure : (UNSAFE)? (ONCE)? FN maybe_lifetimes LPAREN maybe_tylike_args RPAREN ret_ty ;
 
-// below here it looks pretty good.
+
+// TOKEN TREES:
 tt : nondelim | delimited ;
 delimited : parendelim
   | bracketdelim
@@ -145,11 +253,11 @@ delimited : parendelim
 parendelim : LPAREN tt* RPAREN ;
 bracketdelim : LBRACKET tt* RBRACKET ;
 bracedelim : LBRACE tt* RBRACE ;
-nondelim :
     // putting in keywords to simplify things:
-    AS
+nondelim : AS
   | ASSERT
   | BREAK
+  | CONST
   | COPY
   | DO
   | DROP
@@ -183,6 +291,10 @@ nondelim :
   | USE
   | WHILE
   // Expression-operator symbols.
+  // adding AND and PLUS and MINUS to make the grammar tractable:
+  |  AND
+  |  PLUS
+  |  MINUS
   |  EQ
   |  LT
   |  LE
@@ -234,6 +346,7 @@ inner_doc_comment : INNER_DOC_COMMENT ;
 AS : 'as' ;
 ASSERT : 'assert' ;
 BREAK : 'break' ;
+CONST : 'const' ;
 COPY : 'copy' ;
 DO : 'do' ;
 DROP : 'drop' ;
@@ -267,6 +380,9 @@ UNSAFE : 'unsafe' ;
 USE : 'use' ;
 WHILE : 'while' ;
 
+PLUS   : '+' ;
+AND    : '&' ;
+MINUS  : '-' ;
 EQ     : '=' ;
 LE     : '<=' ;
 LT     : '<';
@@ -279,9 +395,8 @@ OROR  : '||' ;
 NOT   : '!' ;
 TILDE : '~' ;
 STAR : '*' ;
-BINOP : '<<' | '>>' 
-      | [-&|+/^%] ;
-BINOPEQ : BINOP '=' | '*=';
+BINOP : [|/^%] ;
+BINOPEQ : BINOP '=' | '-=' |'*=' | '&=' | '+=' | '<<=' | '>>=' ;
 /* Structural symbols */
 AT        : '@' ;
 DOT       : '.' ;
