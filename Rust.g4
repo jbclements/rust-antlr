@@ -469,7 +469,7 @@ OTHER_BLOCK_COMMENT : '/*' (~[*] | ('*'+ ~[*/]))* '*'+ '/' -> skip ;
 BINDIGIT : [0-1_] ;
 DECDIGIT : [0-9_] ;
 HEXDIGIT : [0-9a-fA-F_] ;
-INTLIT_TY : ('u'|'i') ('8'|'16'|'32'|'64') ;
+INTLIT_TY : ('u'|'i') ('8'|'16'|'32'|'64')? ;
 LITFLOAT_EXP : [eE] [+-]? DECDIGIT+ ;
 LITFLOAT_TY : 'f' ('32'|'64') ;
 

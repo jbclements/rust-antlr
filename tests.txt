@@ -6,3 +6,7 @@
 
 /*! ****/ */
 (tts (tt (nondelim /*! ****/)) (tt (nondelim *)) (tt (nondelim /)))
+
+16u
+(tts (tt (nondelim 16u)))
+
