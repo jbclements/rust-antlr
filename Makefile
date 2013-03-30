@@ -1,5 +1,9 @@
 all : RustParser.class
 
+clean :
+	rm *.class
+	rm *.java
+
 RustParser.class : RustParser.java
 	javac Rust*.java
 
