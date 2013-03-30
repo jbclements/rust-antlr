@@ -12,6 +12,8 @@ tts : tt* ;
 // parsing a whole file as a 'prog' will not yet work; 
 prog : inner_attr* mod_item*;
 
+// MODULE ITEMS :
+
 // maybe incomplete! :
 mod_item : outer_attrs visibility items_with_visibility
   | outer_attrs impl_trait_for_type
@@ -23,28 +25,28 @@ items_with_visibility : const_item
   | impl
   | mod_decl
   | EXTERN item_fn_decl
-  | EXTERN item_foreign_mod
-  | EXTERN MOD IDENT maybe_meta_item_seq SEMI
+  | foreign_mod
+  | EXTERN MOD ident maybe_meta_item_seq SEMI
   | struct_decl
   | type_decl
   | trait_decl 
   ;
-mod_decl : MOD IDENT SEMI
-  | MOD IDENT /*loose*/ bracedelim ;
-struct_decl : STRUCT IDENT maybe_generic_decls /*loose*/ bracedelim
-  | STRUCT IDENT maybe_generic_decls /*loose*/ parendelim
-  | STRUCT IDENT maybe_generic_decls SEMI ;
+mod_decl : MOD ident SEMI
+  | MOD ident /*loose*/ bracedelim ;
+struct_decl : STRUCT ident maybe_generic_decls /*loose*/ bracedelim
+  | STRUCT ident maybe_generic_decls /*loose*/ parendelim SEMI
+  | STRUCT ident maybe_generic_decls SEMI ;
 impl : IMPL maybe_generic_decls ty impl_body ;
 impl_trait_for_type : IMPL maybe_generic_decls trait FOR ty impl_body ;
-type_decl : TYPE IDENT maybe_generic_decls EQ ty SEMI ;
-enum_decl : ENUM IDENT maybe_generic_decls EQ ty SEMI
-  | ENUM IDENT maybe_generic_decls /* loose: */ bracedelim ;
-trait_decl: TRAIT IDENT maybe_generic_decls (COLON trait_list)? /*loose*/ bracedelim ;
-macro_item: path NOT (IDENT)? parendelim
-  | path NOT (IDENT)? bracedelim ;
+type_decl : TYPE ident maybe_generic_decls EQ ty SEMI ;
+enum_decl : ENUM ident maybe_generic_decls EQ ty SEMI
+  | ENUM ident maybe_generic_decls /* loose: */ bracedelim ;
+trait_decl: TRAIT ident maybe_generic_decls (COLON trait_list)? /*loose*/ bracedelim ;
+macro_item: path NOT (ident)? parendelim
+  | path NOT (ident)? bracedelim ;
 use : USE view_paths SEMI ;
-item_fn_decl : FN IDENT maybe_generic_decls LPAREN maybe_args RPAREN ret_ty inner_attrs_and_block ;
-item_foreign_mod :  EXTERN (LIT_STR)? MOD IDENT /*loose*/ bracedelim
+item_fn_decl : FN ident maybe_generic_decls LPAREN maybe_args RPAREN ret_ty inner_attrs_and_block ;
+foreign_mod :  EXTERN (LIT_STR)? MOD ident /*loose*/ bracedelim
   | EXTERN (LIT_STR)? /*loose*/bracedelim ;
 
 
@@ -90,13 +92,13 @@ pat : AT pat
 maybe_pats : /* nothing */ | pats ;
 pats : pat (COMMA)? | pat COMMA pats ;
 
-const_item : STATIC IDENT COLON ty EQ expr SEMI ;
+const_item : STATIC ident COLON ty EQ expr SEMI ;
 
 // at most one common field declaration?
 //enum_def : outer_at// loose:
 //    bracedelim ;
 view_paths : view_path | view_path COMMA view_paths ;
-view_path : MOD? IDENT EQ non_global_path
+view_path : MOD? ident EQ non_global_path
   | MOD? non_global_path MOD_SEP LBRACE RBRACE
   | MOD? non_global_path MOD_SEP LBRACE ident_seq RBRACE
   | MOD? non_global_path MOD_SEP STAR
@@ -115,9 +117,9 @@ outer_attr : POUND LBRACKET meta_item RBRACKET
   | OUTER_DOC_COMMENT ; 
 inner_attr : POUND LBRACKET meta_item RBRACKET SEMI
   | INNER_DOC_COMMENT ;
-meta_item : IDENT
-  | IDENT EQ lit
-  | IDENT LPAREN meta_item_seq RPAREN ;
+meta_item : ident
+  | ident EQ lit
+  | ident LPAREN meta_item_seq RPAREN ;
 meta_item_seq : | meta_item_nonempty_seq ;
 meta_item_nonempty_seq : meta_item
   | meta_item COMMA meta_item_nonempty_seq ;
@@ -134,9 +136,11 @@ generic_decls_list : LIFETIME
   | LIFETIME COMMA generic_decls_list
   | ty_params ;
 ty_params : ty_param | ty_param COMMA ty_params ;
-ty_param : IDENT | IDENT COLON | IDENT COLON boundseq ;
+ty_param : ident | ident COLON | ident COLON boundseq ;
 boundseq : bound | bound PLUS boundseq ;
-bound : (AND STATIC)? ty;
+bound : (AND STATIC)? ty | obsoletekind ;
+// take these out?
+obsoletekind : COPY | CONST ;
 
 maybe_generics : /* nothing */ | generics ;
 generics : LT GT
@@ -148,10 +152,10 @@ generics_list : LIFETIME
 maybe_lifetimes : /*nothing*/ | lifetimes ;
 lifetimes : LIFETIME | LIFETIME COMMA lifetimes ;
 
-ident_seq : IDENT | IDENT COMMA ident_seq ;
+ident_seq : ident | ident COMMA ident_seq ;
 
 path : MOD_SEP? non_global_path ;
-non_global_path : IDENT (MOD_SEP IDENT)* ;
+non_global_path : ident (MOD_SEP ident)* ;
 
 
 
@@ -217,19 +221,21 @@ expr_bottom : /*loose*/ parendelim
   | /*loose*/ bracketdelim
   | __LOG LPAREN expr COMMA expr RPAREN
   | RETURN expr
-  | BREAK (IDENT)?
+  | BREAK (ident)?
   | COPY expr
   | expr_macro_invocation
   | path_with_tps LBRACE field_exprs RBRACE
   | path_with_tps
   | lit
   ;
-expr_dot_or_call_suffix : DOT IDENT (MOD_SEP generics)? (/*loose*/parendelim)? expr_dot_or_call_suffix
+expr_dot_or_call_suffix : DOT ident (MOD_SEP generics)? (/*loose*/parendelim)? expr_dot_or_call_suffix
   | /*loose*/parendelim expr_dot_or_call_suffix
   | /*loose*/bracketdelim expr_dot_or_call_suffix
   | /* nothing */
   ;
 
+// SELF and STATIC may be used as identifiers
+ident : IDENT | SELF | STATIC ;
 
 field_exprs : field_expr field_trailer
   | field_expr COMMA field_exprs ;
@@ -264,8 +270,8 @@ ty : LPAREN RPAREN
   | TILDE box_or_uniq_pointee
   | STAR mutability ty
   | path maybe_generics
-  | LBRACKET ty COMMA DOTDOT expr RBRACKET
-  | LBRACKET ty RBRACKET
+  | LBRACKET obsoleteconst ty COMMA DOTDOT expr RBRACKET
+  | LBRACKET obsoleteconst ty RBRACKET
   | AND borrowed_pointee
     // something going in here re: ABI
   | EXTERN (UNSAFE)? FN maybe_lifetimes LPAREN maybe_tylike_args RPAREN ret_ty
@@ -279,6 +285,8 @@ borrowed_pointee : (LIFETIME)? ty_closure
   | (LIFETIME)? mutability ty ;
 ty_closure : (UNSAFE)? (ONCE)? FN maybe_lifetimes LPAREN maybe_tylike_args RPAREN ret_ty ;
 
+// obsolete:
+obsoleteconst : (CONST)? ;
 
 // TOKEN TREES:
 tt : nondelim | delimited ;
@@ -318,7 +326,9 @@ nondelim : AS
   | RETURN
   | STATIC
   | STRUCT
-  | SUPER
+  | SELF
+    // I don't think super needs to be a keyword.
+//  | SUPER
   | TRUE
   | TRAIT
   | TYPE
@@ -406,9 +416,11 @@ PUB : 'pub' ;
 PURE : 'pure' ;
 REF : 'ref' ;
 RETURN : 'return' ;
+SELF : 'self' ;
 STATIC : 'static' ;
 STRUCT : 'struct' ;
-SUPER : 'super' ;
+// I don't think super should be a keyword...
+// SUPER : 'super' ;
 TRUE : 'true' ;
 TRAIT : 'trait' ;
 TYPE : 'type' ;
@@ -482,7 +494,11 @@ UNDERSCORE : '_' ;
 // there's potential ambiguity with char constants,
 // but I think that the greedy read will do the "right
 // thing"
-LIFETIME : '\'' IDENT ;
+LIFETIME : '\'' IDENT
+    // not sure about these:
+  | '\'' SELF
+  | '\'' STATIC
+  ;
 // the not-only-slashes restrictions is a real PITA:
 // must have at least one non-slash char
 OUTER_DOC_COMMENT : '///' '/' * NON_SLASH_OR_WS ~[\n]*
