@@ -525,7 +525,7 @@ DECDIGIT : [0-9_] ;
 HEXDIGIT : [0-9a-fA-F_] ;
 INTLIT_TY : ('u'|'i') ('8'|'16'|'32'|'64')? ;
 LITFLOAT_EXP : [eE] [+-]? DECDIGIT+ ;
-LITFLOAT_TY : 'f' ('32'|'64') ;
+LITFLOAT_TY : 'f' ('32'|'64')? ;
 
 ESCAPEDCHAR : 'n' | 'r' | 't' | '\\' | '\'' | '\"'
   | 'x' HEXDIGIT HEXDIGIT | 'u' HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT
