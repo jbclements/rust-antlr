@@ -61,7 +61,9 @@ impl_body : SEMI
 maybe_args : /* nothing */ | args ;
 args : arg | arg COMMA args ;
 arg : (arg_mode)? (MUT)? pat COLON ty ;
-arg_mode : AND AND | PLUS ;
+arg_mode : AND AND | PLUS | obsoletemode ;
+// obsolete ++ mode used in librustc/middle/region.rs
+obsoletemode : PLUS PLUS ;
 ret_ty : RARROW NOT
   | RARROW ty
   | /* nothing */
@@ -235,7 +237,8 @@ expr_dot_or_call_suffix : DOT ident (MOD_SEP generics)? (/*loose*/parendelim)? e
   ;
 
 // SELF and STATIC may be used as identifiers
-ident : IDENT | SELF | STATIC ;
+// not sure about underscore. should it even be a token?
+ident : IDENT | SELF | STATIC | UNDERSCORE;
 
 field_exprs : field_expr field_trailer
   | field_expr COMMA field_exprs ;
@@ -244,7 +247,7 @@ field_trailer : DOTDOT expr
   | /* nothing */
   ;
 // unimplemented
-field_expr : STAR STAR ;
+field_expr : mutability ident COLON expr ;
 
 expr_macro_invocation :
     path_with_tps NOT parendelim
@@ -471,7 +474,7 @@ DOLLAR    : '$' ;
 LIT_INT   : LIT_CHAR
           | '0x' HEXDIGIT+ INTLIT_TY?
           | '0b' BINDIGIT+ INTLIT_TY?
-          | DECDIGIT+ INTLIT_TY?
+          | [0-9] DECDIGIT* INTLIT_TY?
           ;
 
 // we may need lookahead here; the rust lexer
@@ -479,11 +482,11 @@ LIT_INT   : LIT_CHAR
 // alpha, dot, or _, and bails if so. Wait... why
 // doesn't it just check that there's at least one
 // digit? Perhaps because of the underscore restriction?
-LIT_FLOAT : DECDIGIT+ '.'
-          // nb: digit following . can't be underscore.
-          | DECDIGIT+ '.' [0-9] DECDIGIT* LITFLOAT_EXP? LITFLOAT_TY?
-          | DECDIGIT+ LITFLOAT_EXP LITFLOAT_TY?
-          | DECDIGIT+ LITFLOAT_TY
+LIT_FLOAT : [0-9] DECDIGIT* '.'
+          // nb: digit following '.' can't be underscore.
+          | [0-9] DECDIGIT* '.' [0-9] DECDIGIT* LITFLOAT_EXP? LITFLOAT_TY?
+          | [0-9] DECDIGIT* LITFLOAT_EXP LITFLOAT_TY?
+          | [0-9] DECDIGIT* LITFLOAT_TY
           ;
 
 LIT_STR : '\"' STRCHAR* '\"' ;

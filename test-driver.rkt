@@ -16,7 +16,10 @@
 
 (define parser-dont-try-list
   ;; just too rotted...
-  (list #rx"src/libfuzzer/"))
+  (list #rx"src/libfuzzer/"
+        ;; strange; empty files don't seem to work as 
+        ;; I'd expect in ANTLR.
+        #rx"librustc/middle/trans/block.rs"))
 
 (define (run-tests directory skip-list nonterm)
 (for/sum ([f (in-directory directory)]
@@ -46,6 +49,6 @@
              f result errtext)))
   1))
 
-(run-tests "/Users/clements/tryrust"
+(run-tests "/Users/clements/tryrust/src/librustc/middle"
            parser-dont-try-list
            "prog")
