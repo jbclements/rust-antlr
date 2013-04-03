@@ -3,6 +3,7 @@ grammar Rust;
 // splitting issues: &&, <<, >>, >>=, ||
 // be more consistent in use of *_list, *_seq, and *s.
 // worry about restrictions, incl. "expr-is-complete"
+// add parse_opt_abi_thingy
 
 import "xidstart" , "xidcont";
 
@@ -24,12 +25,12 @@ items_with_visibility : const_item
   | (UNSAFE)? item_fn_decl 
   | impl
   | mod_decl
-  | EXTERN item_fn_decl
+  | EXTERN (LIT_STR)? item_fn_decl
   | foreign_mod
   | EXTERN MOD ident maybe_meta_item_seq SEMI
   | struct_decl
   | type_decl
-  | trait_decl 
+  | trait_decl
   ;
 mod_decl : MOD ident SEMI
   | MOD ident /*loose*/ bracedelim ;
@@ -64,6 +65,14 @@ arg : (arg_mode)? (MUT)? pat COLON ty ;
 arg_mode : AND AND | PLUS | obsoletemode ;
 // obsolete ++ mode used in librustc/middle/region.rs
 obsoletemode : PLUS PLUS ;
+
+maybe_fn_block_args : /* nothing */ | fn_block_args ;
+fn_block_args : fn_block_arg | fn_block_arg COMMA fn_block_args ;
+fn_block_arg : (arg_mode)? (MUT)? pat (COLON ty)? ;
+
+
+
+
 ret_ty : RARROW NOT
   | RARROW ty
   | /* nothing */
@@ -134,34 +143,32 @@ maybe_meta_item_seq : /*nothing*/ | LPAREN meta_item_seq RPAREN;
 maybe_generic_decls : /* nothing */ | generic_decls ;
 generic_decls : LT GT
   | LT generic_decls_list GT ;
-generic_decls_list : LIFETIME
-  | LIFETIME COMMA generic_decls_list
+generic_decls_list : lifetime
+  | lifetime COMMA generic_decls_list
   | ty_params ;
 ty_params : ty_param | ty_param COMMA ty_params ;
 ty_param : ident | ident COLON | ident COLON boundseq ;
 boundseq : bound | bound PLUS boundseq ;
-bound : (AND STATIC)? ty | obsoletekind ;
+bound : STATIC_LIFETIME | ty | obsoletekind ;
 // take these out?
 obsoletekind : COPY | CONST ;
 
 maybe_generics : /* nothing */ | generics ;
 generics : LT GT
   | LT generics_list GT ;
-generics_list : LIFETIME
-  | LIFETIME COMMA generics_list
+generics_list : lifetime
+  | lifetime COMMA generics_list
   | ty_seq ;
 
 maybe_lifetimes : /*nothing*/ | lifetimes ;
-lifetimes : LIFETIME | LIFETIME COMMA lifetimes ;
+lifetimes : lifetime | lifetime COMMA lifetimes ;
 
-ident_seq : ident | ident COMMA ident_seq ;
+ident_seq : ident (COMMA)? | ident COMMA ident_seq ;
 
 path : MOD_SEP? non_global_path ;
 non_global_path : ident (MOD_SEP ident)* ;
 
 
-
-//UNIMPLEMENTED:
 expr : expr_1 EQ expr
   | expr_1 BINOPEQ expr
   | expr_1 DARROW expr
@@ -203,16 +210,16 @@ expr_12 : expr_12 STAR expr_prefix
 expr_prefix : NOT expr_prefix
   | MINUS expr_prefix
   | STAR expr_prefix
-  | AND (LIFETIME)? mutability expr_prefix
+  | AND (lifetime)? mutability expr_prefix
   | AT (MUT)? expr_prefix
   | TILDE expr_prefix
   | expr_dot_or_call
   ;
 expr_dot_or_call : expr_bottom expr_dot_or_call_suffix ;
 expr_bottom : /*loose*/ parendelim
-  | /*loose*/ bracedelim
-    /* unimplemented
+  | /*loose*/ bracedelim // block
   | expr_lambda
+    /* unimplemented
   | expr_if
   | expr_for
   | expr_do
@@ -235,10 +242,12 @@ expr_dot_or_call_suffix : DOT ident (MOD_SEP generics)? (/*loose*/parendelim)? e
   | /*loose*/bracketdelim expr_dot_or_call_suffix
   | /* nothing */
   ;
+expr_lambda : OR maybe_fn_block_args OR expr ;
 
 // SELF and STATIC may be used as identifiers
 // not sure about underscore. should it even be a token?
-ident : IDENT | SELF | STATIC | UNDERSCORE;
+ident : IDENT | SELF | STATIC | UNDERSCORE ;
+lifetime : STATIC_LIFETIME | LIFETIME ;
 
 field_exprs : field_expr field_trailer
   | field_expr COMMA field_exprs ;
@@ -277,15 +286,15 @@ ty : LPAREN RPAREN
   | LBRACKET obsoleteconst ty RBRACKET
   | AND borrowed_pointee
     // something going in here re: ABI
-  | EXTERN (UNSAFE)? FN maybe_lifetimes LPAREN maybe_tylike_args RPAREN ret_ty
+  | EXTERN (LIT_STR)? (UNSAFE)? FN maybe_lifetimes LPAREN maybe_tylike_args RPAREN ret_ty
   | ty_closure
   | path maybe_generics
   ;
 ty_seq : ty | ty COMMA ty_seq ;
-box_or_uniq_pointee : (LIFETIME)? ty_closure
+box_or_uniq_pointee : (lifetime)? ty_closure
   | mutability ty ;
-borrowed_pointee : (LIFETIME)? ty_closure
-  | (LIFETIME)? mutability ty ;
+borrowed_pointee : (lifetime)? ty_closure
+  | (lifetime)? mutability ty ;
 ty_closure : (UNSAFE)? (ONCE)? FN maybe_lifetimes LPAREN maybe_tylike_args RPAREN ret_ty ;
 
 // obsolete:
@@ -382,6 +391,7 @@ nondelim : AS
   // Name components 
   |  IDENT
   |  UNDERSCORE
+  |  STATIC_LIFETIME
   |  LIFETIME
   // For interpolation
   // |  INTERPOLATED
@@ -497,10 +507,10 @@ UNDERSCORE : '_' ;
 // there's potential ambiguity with char constants,
 // but I think that the greedy read will do the "right
 // thing"
+STATIC_LIFETIME : '\'static' ;
 LIFETIME : '\'' IDENT
-    // not sure about these:
+    // should this be a lifetime? :
   | '\'' SELF
-  | '\'' STATIC
   ;
 // the not-only-slashes restrictions is a real PITA:
 // must have at least one non-slash char

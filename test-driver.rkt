@@ -19,7 +19,30 @@
   (list #rx"src/libfuzzer/"
         ;; strange; empty files don't seem to work as 
         ;; I'd expect in ANTLR.
-        #rx"librustc/middle/trans/block.rs"))
+        #rx"librustc/middle/trans/block.rs"
+        ;; in tests, there are going to be lots of things that don't compile...
+        ;; paren in use decl:
+        #rx"src/test/auxiliary/issue-2196-b.rs"
+        ;; empty:
+        #rx"src/test/auxiliary/issue-2196-d.rs"
+        ;; doesn't compile:
+        #rx"src/test/auxiliary/issue2378a.rs"
+        #rx"src/test/auxiliary/issue2378b.rs"
+        #rx"src/test/compile-fail/"
+        ;; these have the keyword "class"... they're all xfail'ed
+        #rx"src/test/run-pass/class-cast-to-trait-cross-crate.rs"
+        #rx"src/test/run-pass/class-impl-parameterized-trait.rs"
+        #rx"src/test/run-pass/class-implements-multiple-traits.rs"
+        #rx"src/test/run-pass/class-trait-bounded-param.rs"
+        ;; uses "bind"... obsolete?
+        #rx"src/test/run-pass/clone-with-exterior.rs"
+        ;; too big :(
+        #rx"src/test/run-pass/deep-vector2.rs"
+        ;; uses "loop" as an identifier
+        #rx"src/test/run-pass/infinite-loops.rs"
+        #rx"src/test/run-pass/int-conversion-coherence.rs"
+        #rx"src/test/run-pass/issue-2101.rs"
+        #rx"src/test/run-pass/issue-2190.rs"))
 
 (define (run-tests directory skip-list nonterm)
 (for/sum ([f (in-directory directory)]
@@ -49,6 +72,6 @@
              f result errtext)))
   1))
 
-(run-tests "/Users/clements/tryrust/src/librustc/middle"
+(run-tests "/Users/clements/rust/src/test/run-pass/"
            parser-dont-try-list
            "prog")
