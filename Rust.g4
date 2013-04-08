@@ -10,23 +10,22 @@ import "xidstart" , "xidcont";
 // parsing a whole file as a 'tts' should work on current sources.
 tts : tt* ;
 
-// parsing a whole file as a 'prog' will not yet work; 
-prog : inner_attr* mod_item*;
+// parsing a whole file as a 'prog' will be spotty.
+prog : inner_attr* extern_mod_view_item* view_item* mod_item*;
 
 // MODULE ITEMS :
-
+extern_mod_view_item : outer_attrs visibility foreign_mod ;
+view_item : outer_attrs visibility use ;
 // maybe incomplete! :
 mod_item : outer_attrs visibility items_with_visibility
   | outer_attrs impl_trait_for_type
   | macro_item ;
 items_with_visibility : const_item
   | enum_decl
-  | use
   | (UNSAFE)? item_fn_decl 
   | impl
   | mod_decl
   | EXTERN (LIT_STR)? item_fn_decl
-  | foreign_mod
   | EXTERN MOD ident maybe_meta_item_seq SEMI
   | struct_decl
   | type_decl
@@ -46,7 +45,7 @@ trait_decl: TRAIT ident maybe_generic_decls (COLON trait_list)? /*loose*/ braced
 macro_item: path NOT (ident)? parendelim
   | path NOT (ident)? bracedelim ;
 use : USE view_paths SEMI ;
-item_fn_decl : FN ident maybe_generic_decls LPAREN maybe_args RPAREN ret_ty inner_attrs_and_block ;
+item_fn_decl : FN ident maybe_generic_decls LPAREN maybe_args RPAREN ret_ty fun_body ;
 foreign_mod :  EXTERN (LIT_STR)? MOD ident /*loose*/ bracedelim
   | EXTERN (LIT_STR)? /*loose*/bracedelim ;
 
@@ -81,7 +80,7 @@ maybe_tylike_args : /*nothing*/ | tylike_args ;
 tylike_args : tylike_arg | tylike_arg COMMA tylike_args ;
 tylike_arg : arg | ty ;
 
-inner_attrs_and_block : /*loose*/ LBRACE inner_attr* tt* RBRACE ;
+fun_body : /*loose*/ LBRACE inner_attr* view_item* block_item* RBRACE ;
 
 // not treating _ specially... I don't think I have to.
 pat : AT pat
