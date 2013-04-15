@@ -1,5 +1,22 @@
 grammar Rust;
 
+// in order to support the restrictions, we can either incur massive duplication
+// of the expression grammar, or we can explicitly model the parser's restrictions
+// using a manually updated stack.  For the moment, I'm going to try the stack.
+// This stack starts out with "OK" on top, and all pushes and pops are paired,
+// so it should never be empty.
+
+@header {
+  import java.util.Arrays;
+  import java.util.Deque;
+  import java.util.ArrayDeque;
+}
+
+@parser::members {
+      public enum Restriction { OK, NO_LHS_STMT, NO_OR, NO_OR_OR_OROR };
+      public Deque<Restriction> stack = new ArrayDeque<Restriction>(Arrays.asList(Restriction.OK));
+}
+
 // splitting issues: &&, <<, >>, >>=, ||
 // be more consistent in use of *_list, *_seq, and *s.
 // worry about restrictions, incl. "expr-is-complete"
@@ -16,7 +33,6 @@ prog : inner_attr* extern_mod_view_item* view_item* mod_item*;
 // MODULE ITEMS :
 extern_mod_view_item : outer_attrs visibility foreign_mod ;
 view_item : outer_attrs visibility use ;
-// maybe incomplete! :
 mod_item : outer_attrs visibility items_with_visibility
   | outer_attrs impl_trait_for_type
   | macro_item ;
@@ -54,7 +70,7 @@ visibility : (PUB | PRIV)? ;
 
 trait_list : trait | trait PLUS trait_list ;
 
-    
+
 impl_body : SEMI
   | /*loose*/ bracedelim ;
 
@@ -80,18 +96,37 @@ maybe_tylike_args : /*nothing*/ | tylike_args ;
 tylike_args : tylike_arg | tylike_arg COMMA tylike_args ;
 tylike_arg : arg | ty ;
 
-fun_body : /*loose*/ LBRACE inner_attr* view_item* block_item* RBRACE ;
+fun_body : /*loose*/ LBRACE inner_attr* view_item* block_element* block_last_element? RBRACE ;
+block_element : expr_no_lhs_stmt (SEMI)+
+    // can't be sure whether this expands into a statement or an item...:
+  | stmt_not_just_expr
+  ;
+// the "stmt" production may simply consume an expr without its semicolon, so we need
+// to refactor to split these apart, because in a block body we need the semicolon.
+// if this is true of all callers, we could glue it back together again....
+stmt : expr_no_lhs_stmt | stmt_not_just_expr ;
+stmt_not_just_expr : let_stmt
+  | mod_item
+  | expr_restricted_to_statement
+    /* unfinished */
+  ;
 
-// not treating _ specially... I don't think I have to.
+block_last_element : expr_no_lhs_stmt | mac_expr | stmt_expr ;
+mac_expr : ident NOT /*loose*/ parendelim ;
+
+
+let_stmt : let (MUT)? local_var_decl (COMMA local_var_decl) SEMI ;
+
+// not treating '_' specially... I don't think I have to.
 pat : AT pat
   | TILDE pat
   | AND pat
   | LPAREN RPAREN
   | LPAREN pats RPAREN
   | /* loose */ bracketdelim // vectors
-  | expr_res_no_bar_op (DOTDOT expr_res_no_bar_op)?
+  | expr_no_bar_op (DOTDOT expr_no_bar_op)?
   | REF mutability pat_ident
-  | COPY pat_ident
+  | COPYTOK pat_ident
   | path
   | path AT pat
   | path MOD_SEP generics
@@ -118,7 +153,7 @@ view_path : MOD? ident EQ non_global_path
 mutability : MUT | CONST | /*nothing*/ ;
 
 // UNIMPLEMENTED:
-expr_res_no_bar_op : STAR STAR ;
+expr_no_bar_op : STAR STAR ;
 pat_ident : STAR STAR ;
 pat_fields : STAR STAR ;
 
@@ -150,7 +185,8 @@ ty_param : ident | ident COLON | ident COLON boundseq ;
 boundseq : bound | bound PLUS boundseq ;
 bound : STATIC_LIFETIME | ty | obsoletekind ;
 // take these out?
-obsoletekind : COPY | CONST ;
+obsoletekind : COPYTOK | CONST ;
+
 
 maybe_generics : /* nothing */ | generics ;
 generics : LT GT
@@ -166,6 +202,17 @@ ident_seq : ident (COMMA)? | ident COMMA ident_seq ;
 
 path : MOD_SEP? non_global_path ;
 non_global_path : ident (MOD_SEP ident)* ;
+
+// EXPRS
+// in the NO_LHS_STMT mode, we're concerned about
+// statements like if true {3} else {4} |a|a, which we
+// want to parse as a statement followed by an expression,
+// rather than as (if... | a) | a.
+
+expr_no_restrict : {stack.push(Restrict.OK)} expr {stack.pop()} ;
+expr_no_lhs_stmt : {stack.push(Restrict.NO_LHS_STMT)} expr {stack.pop()} ;
+expr_no_or : {stack.push(Restrict.NO_OR)} expr {stack.pop()} ;
+expr_no_or_or_oror : {stack.push(Restrict.NO_OR_OR_OROR)} expr {stack.pop()} ;
 
 
 expr : expr_1 EQ expr
@@ -216,26 +263,30 @@ expr_prefix : NOT expr_prefix
   ;
 expr_dot_or_call : expr_bottom expr_dot_or_call_suffix ;
 expr_bottom : /*loose*/ parendelim
-  | /*loose*/ bracedelim // block
   | expr_lambda
-    /* unimplemented
-  | expr_if
-  | expr_for
-  | expr_do
-  | expr_while
-  | expr_loop
-  | expr_match
-  | expr_unsafe_block */
+  | expr_stmt
   | /*loose*/ bracketdelim
   | __LOG LPAREN expr COMMA expr RPAREN
   | RETURN expr
   | BREAK (ident)?
-  | COPY expr
+  | COPYTOK expr
   | expr_macro_invocation
   | path_with_tps LBRACE field_exprs RBRACE
   | path_with_tps
   | lit
   ;
+// things that can be either statements or expressions
+// these can't appear in certain positions, e.g. 'if true {3} else {4} + 19'
+expr_stmt : expr_if
+  | /*loose*/ bracedelim // block
+  | expr_unsafe_block
+  | expr_match
+  | expr_while
+  | expr_loop
+  | expr_for
+  | expr_do
+  ;
+
 expr_dot_or_call_suffix : DOT ident (MOD_SEP generics)? (/*loose*/parendelim)? expr_dot_or_call_suffix
   | /*loose*/parendelim expr_dot_or_call_suffix
   | /*loose*/bracketdelim expr_dot_or_call_suffix
@@ -312,7 +363,7 @@ nondelim : AS
   | ASSERT
   | BREAK
   | CONST
-  | COPY
+  | COPYTOK
   | DO
   | DROP
   | ELSE
@@ -405,7 +456,7 @@ AS : 'as' ;
 ASSERT : 'assert' ;
 BREAK : 'break' ;
 CONST : 'const' ;
-COPY : 'copy' ;
+COPYTOK : 'copy' ;
 DO : 'do' ;
 DROP : 'drop' ;
 ELSE : 'else' ;
