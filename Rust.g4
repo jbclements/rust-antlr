@@ -98,26 +98,27 @@ tylike_arg : arg | ty ;
 
 fun_body : /*loose*/ LBRACE inner_attr* view_item* block_element* block_last_element? RBRACE ;
 block_element : expr_no_lhs_stmt (SEMI)+
-    // can't be sure whether this expands into a statement or an item...:
-  | stmt_not_just_expr
+  | stmt_not_just_expr (SEMI)*
   ;
 // the "stmt" production may simply consume an expr without its semicolon, so we need
 // to refactor to split these apart, because in a block body we need the semicolon.
 // if this is true of all callers, we could glue it back together again....
 stmt : expr_no_lhs_stmt | stmt_not_just_expr ;
+// a statement that is not parsed by the expr_no_lhs_stmt rule
 stmt_not_just_expr : let_stmt
+  | mac_expr
   | mod_item
-  | expr_restricted_to_statement
-    /* unfinished */
+  | expr_stmt
   ;
 
-block_last_element : expr_no_lhs_stmt | mac_expr | stmt_expr ;
+block_last_element : expr_no_lhs_stmt | mac_expr | expr_stmt ;
 mac_expr : ident NOT /*loose*/ parendelim ;
 
-
-let_stmt : let (MUT)? local_var_decl (COMMA local_var_decl) SEMI ;
+let_stmt : LET (MUT)? local_var_decl (COMMA local_var_decl) SEMI ;
+local_var_decl : pat (COLON ty)? (EQ expr)? ;
 
 // not treating '_' specially... I don't think I have to.
+// "refutable" appears not to affect the parsing at this level.
 pat : AT pat
   | TILDE pat
   | AND pat
@@ -150,7 +151,7 @@ view_path : MOD? ident EQ non_global_path
   | MOD? non_global_path
   ;
 
-mutability : MUT | CONST | /*nothing*/ ;
+mutability : MUT | CONST | /* nothing */  ;
 
 // UNIMPLEMENTED:
 expr_no_bar_op : STAR STAR ;
@@ -286,6 +287,8 @@ expr_stmt : expr_if
   | expr_for
   | expr_do
   ;
+
+expr_if : IF expr block (else else_expr) // what's an else expr look like? RIGHT HERE
 
 expr_dot_or_call_suffix : DOT ident (MOD_SEP generics)? (/*loose*/parendelim)? expr_dot_or_call_suffix
   | /*loose*/parendelim expr_dot_or_call_suffix
