@@ -6,6 +6,16 @@ grammar Rust;
 // add parse_opt_abi_thingy
 // NB: associativity may be wrong all over the place.
 
+@lexer::members {
+      public boolean followed_by_ident() {
+        
+        System.out.println("I ran");
+        return false;
+      }
+
+    }
+
+    
 import "xidstart" , "xidcont";
 
 // parsing a whole file as a 'tts' should work on current sources.
@@ -644,7 +654,7 @@ LIT_INT   : LIT_CHAR
           ;
 
 // we definitely need lookahead here...
-LIT_FLOAT : [0-9] DECDIGIT* '.' 
+LIT_FLOAT : [0-9] DECDIGIT* '.' {!followed_by_ident()}?
           // nb: digit following '.' can't be underscore.
           | [0-9] DECDIGIT* '.' [0-9] DECDIGIT* LITFLOAT_EXP? LITFLOAT_TY?
           | [0-9] DECDIGIT* LITFLOAT_EXP LITFLOAT_TY?
