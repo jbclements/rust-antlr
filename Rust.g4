@@ -8,8 +8,9 @@ grammar Rust;
 
 @lexer::members {
       public boolean followed_by_ident() {
-        
-        System.out.println("I ran");
+
+        CharStream cs = getInputStream();
+        System.out.println("LA: "+cs.LA(1)+"\n");
         return false;
       }
 
