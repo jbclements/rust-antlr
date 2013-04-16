@@ -1,26 +1,10 @@
 grammar Rust;
 
-// in order to support the restrictions, we can either incur massive duplication
-// of the expression grammar, or we can explicitly model the parser's restrictions
-// using a manually updated stack.  For the moment, I'm going to try the stack.
-// This stack starts out with "OK" on top, and all pushes and pops are paired,
-// so it should never be empty.
-
-@header {
-  import java.util.Arrays;
-  import java.util.Deque;
-  import java.util.ArrayDeque;
-}
-
-@parser::members {
-      public enum Restriction { OK, NO_LHS_STMT, NO_OR, NO_OR_OR_OROR };
-      public Deque<Restriction> stack = new ArrayDeque<Restriction>(Arrays.asList(Restriction.OK));
-}
-
 // splitting issues: &&, <<, >>, >>=, ||
 // be more consistent in use of *_list, *_seq, and *s.
 // worry about restrictions, incl. "expr-is-complete"
 // add parse_opt_abi_thingy
+// NB: associativity may be wrong all over the place.
 
 import "xidstart" , "xidcont";
 
@@ -96,25 +80,26 @@ maybe_tylike_args : /*nothing*/ | tylike_args ;
 tylike_args : tylike_arg | tylike_arg COMMA tylike_args ;
 tylike_arg : arg | ty ;
 
-fun_body : /*loose*/ LBRACE inner_attr* view_item* block_element* block_last_element? RBRACE ;
-block_element : expr_no_lhs_stmt (SEMI)+
+fun_body : LBRACE inner_attr* view_item* block_element* block_last_element? RBRACE ;
+block : LBRACE view_item* block_element* block_last_element? RBRACE ;
+block_element : expr_RL (SEMI)+
   | stmt_not_just_expr (SEMI)*
   ;
 // the "stmt" production may simply consume an expr without its semicolon, so we need
 // to refactor to split these apart, because in a block body we need the semicolon.
 // if this is true of all callers, we could glue it back together again....
-stmt : expr_no_lhs_stmt | stmt_not_just_expr ;
-// a statement that is not parsed by the expr_no_lhs_stmt rule
+stmt : expr_RL | stmt_not_just_expr ;
+// a statement that is not parsed by the expr_RL rule
 stmt_not_just_expr : let_stmt
   | mac_expr
   | mod_item
   | expr_stmt
   ;
 
-block_last_element : expr_no_lhs_stmt | mac_expr | expr_stmt ;
+block_last_element : expr_RL | mac_expr | expr_stmt ;
 mac_expr : ident NOT /*loose*/ parendelim ;
 
-let_stmt : LET (MUT)? local_var_decl (COMMA local_var_decl) SEMI ;
+let_stmt : LET (MUT)? local_var_decl (COMMA local_var_decl)? SEMI ;
 local_var_decl : pat (COLON ty)? (EQ expr)? ;
 
 // not treating '_' specially... I don't think I have to.
@@ -125,7 +110,8 @@ pat : AT pat
   | LPAREN RPAREN
   | LPAREN pats RPAREN
   | /* loose */ bracketdelim // vectors
-  | expr_no_bar_op (DOTDOT expr_no_bar_op)?
+    // really, it's fairly weird to allow any expr here...
+  | exprRB (DOTDOT exprRB)?
   | REF mutability pat_ident
   | COPYTOK pat_ident
   | path
@@ -137,6 +123,7 @@ pat : AT pat
   ;
 maybe_pats : /* nothing */ | pats ;
 pats : pat (COMMA)? | pat COMMA pats ;
+pats_or : pat | pat OR pats ;
 
 const_item : STATIC ident COLON ty EQ expr SEMI ;
 
@@ -205,16 +192,6 @@ path : MOD_SEP? non_global_path ;
 non_global_path : ident (MOD_SEP ident)* ;
 
 // EXPRS
-// in the NO_LHS_STMT mode, we're concerned about
-// statements like if true {3} else {4} |a|a, which we
-// want to parse as a statement followed by an expression,
-// rather than as (if... | a) | a.
-
-expr_no_restrict : {stack.push(Restrict.OK)} expr {stack.pop()} ;
-expr_no_lhs_stmt : {stack.push(Restrict.NO_LHS_STMT)} expr {stack.pop()} ;
-expr_no_or : {stack.push(Restrict.NO_OR)} expr {stack.pop()} ;
-expr_no_or_or_oror : {stack.push(Restrict.NO_OR_OR_OROR)} expr {stack.pop()} ;
-
 
 expr : expr_1 EQ expr
   | expr_1 BINOPEQ expr
@@ -268,19 +245,135 @@ expr_bottom : /*loose*/ parendelim
   | expr_stmt
   | /*loose*/ bracketdelim
   | __LOG LPAREN expr COMMA expr RPAREN
+  | LOOP (ident)?
   | RETURN expr
+  | RETURN
   | BREAK (ident)?
   | COPYTOK expr
   | expr_macro_invocation
-  | path_with_tps LBRACE field_exprs RBRACE
+  | path_with_tps /*loose*/ bracedelim 
   | path_with_tps
   | lit
   ;
-// things that can be either statements or expressions
+
+// once again, with stmt_on_lhs restriction . the token
+// fooRL is just like foo but doesn't allow an expr_statement
+// as its beginning.
+
+// in the NO_LHS_STMT mode, we're concerned about
+// statements like if true {3} else {4} |a|a, which we
+// want to parse as a statement followed by an expression,
+// rather than as (if... | a) | a.
+
+expr_RL : expr_1RL EQ expr
+  | expr_1RL BINOPEQ expr
+  | expr_1RL DARROW expr
+  | expr_1RL
+  ;
+expr_1RL : expr_1RL OR expr_2
+  | expr_2RL ;
+expr_2RL : expr_2RL AND expr_3
+  | expr_3RL ;
+expr_3RL : expr_3RL EQEQ expr_4
+  | expr_3RL NE expr_4
+  | expr_4RL ;
+expr_4RL : expr_4RL LT expr_5
+  | expr_4RL LE expr_5
+  | expr_4RL GE expr_5
+  | expr_4RL GT expr_5
+  | expr_5RL
+  ;
+// there is no precedence 5 ...
+expr_5RL : expr_6RL;
+expr_6RL : expr_6RL OR OR expr_7
+  | expr_7RL ;
+expr_7RL : expr_7RL CARET expr_8
+  | expr_8RL ;
+expr_8RL : expr_8RL AND expr_9
+  | expr_9RL ;
+expr_9RL : expr_9RL LT LT expr_10
+  | expr_9RL GT GT expr_10
+  | expr_10RL ;
+expr_10RL : expr_10RL PLUS expr_11
+  | expr_10RL MINUS expr_11
+  | expr_11RL ;
+expr_11RL : expr_11RL AS ty
+  | expr_12RL ;
+expr_12RL : expr_12RL STAR expr_prefix
+  | expr_12RL DIV expr_prefix
+  | expr_12RL REM expr_prefix
+  | expr_prefixRL ;
+expr_prefixRL : NOT expr_prefix
+  | MINUS expr_prefix
+  | STAR expr_prefix
+  | AND (lifetime)? mutability expr_prefix
+  | AT (MUT)? expr_prefix
+  | TILDE expr_prefix
+  | expr_dot_or_callRL
+  ;
+expr_dot_or_callRL : expr_bottomRL expr_dot_or_call_suffix ;
+expr_bottomRL : /*loose*/ parendelim
+  | expr_lambda
+  // no expr_stmt here
+  | /*loose*/ bracketdelim
+  | __LOG LPAREN expr COMMA expr RPAREN
+  | LOOP (ident)?
+  | RETURN expr
+  | RETURN
+  | BREAK (ident)?
+  | COPYTOK expr
+    // this is an ambiguity, right?
+  | expr_macro_invocation
+  | path_with_tps /*loose */ bracedelim //LBRACE field_exprs RBRACE
+  | path_with_tps
+  | lit
+  ;
+
+// exprRB
+// once again, with no | allowed.
+
+exprRB : expr_2 EQ exprRB
+  | expr_2 BINOPEQ exprRB
+  | expr_2 DARROW exprRB
+    // skipping over OR :
+  | expr_2 
+  ;
+
+// expr_RBB
+// once again, with no | or || allowed.
+
+expr_RBB
+    // skipping over OR:
+  : expr_2RBB EQ expr_RBB
+  | expr_2RBB BINOPEQ expr_RBB
+  | expr_2RBB DARROW expr_RBB
+  | expr_2RBB 
+  ;
+expr_2RBB : expr_2RBB AND expr_3RBB
+  | expr_3RBB ;
+expr_3RBB : expr_3RBB EQEQ expr_4RBB
+  | expr_3RBB NE expr_4RBB
+  | expr_4RBB ;
+expr_4RBB : expr_4RBB LT expr_5RBB
+  | expr_4RBB LE expr_5RBB
+  | expr_4RBB GE expr_5RBB
+  | expr_4RBB GT expr_5RBB
+  | expr_5RBB
+  ;
+// there is no precedence 5 ...
+// skipping over OR OR :
+expr_5RBB : expr_7;
+
+
+// things that can be either statements (without semicolons) or expressions
 // these can't appear in certain positions, e.g. 'if true {3} else {4} + 19'
-expr_stmt : expr_if
-  | /*loose*/ bracedelim // block
-  | expr_unsafe_block
+expr_stmt
+  : block
+  | UNSAFE block
+  | expr_stmt_not_block
+  ;
+expr_stmt_not_block
+  : expr_if
   | expr_match
   | expr_while
   | expr_loop
@@ -288,7 +381,18 @@ expr_stmt : expr_if
   | expr_do
   ;
 
-expr_if : IF expr block (else else_expr) // what's an else expr look like? RIGHT HERE
+expr_if : IF expr block (ELSE (block | expr_if))? ;
+expr_for : FOR expr_RBB (OR maybe_fn_block_args OR)? block;
+expr_do : DO expr_RBB (OR maybe_fn_block_args OR)? block;
+expr_while : WHILE expr block ;
+expr_loop
+  : LOOP (UNSAFE)? block
+  | LOOP ident COLON block
+  ;
+expr_match : MATCH expr LBRACE match_clauses RBRACE ;
+match_clauses : match_final_clause | match_clause match_clauses ;
+match_final_clause : pats_or (IF expr)? FAT_ARROW (expr_RL | expr_stmt_not_block | block ) (COMMA)? ;
+match_clause : pats_or (IF expr)? FAT_ARROW (expr_RL COMMA | expr_stmt_not_block COMMA | block (COMMA)? ) ;
 
 expr_dot_or_call_suffix : DOT ident (MOD_SEP generics)? (/*loose*/parendelim)? expr_dot_or_call_suffix
   | /*loose*/parendelim expr_dot_or_call_suffix
@@ -362,8 +466,8 @@ parendelim : LPAREN tt* RPAREN ;
 bracketdelim : LBRACKET tt* RBRACKET ;
 bracedelim : LBRACE tt* RBRACE ;
     // putting in keywords to simplify things:
-nondelim : AS
-  | ASSERT
+nondelim
+  : AS
   | BREAK
   | CONST
   | COPYTOK
@@ -456,7 +560,6 @@ inner_doc_comment : INNER_DOC_COMMENT ;
 
 // putting keywords in to simplify things:
 AS : 'as' ;
-ASSERT : 'assert' ;
 BREAK : 'break' ;
 CONST : 'const' ;
 COPYTOK : 'copy' ;
@@ -540,12 +643,8 @@ LIT_INT   : LIT_CHAR
           | [0-9] DECDIGIT* INTLIT_TY?
           ;
 
-// we may need lookahead here; the rust lexer
-// checks whether the char following the . is
-// alpha, dot, or _, and bails if so. Wait... why
-// doesn't it just check that there's at least one
-// digit? Perhaps because of the underscore restriction?
-LIT_FLOAT : [0-9] DECDIGIT* '.'
+// we definitely need lookahead here...
+LIT_FLOAT : [0-9] DECDIGIT* '.' 
           // nb: digit following '.' can't be underscore.
           | [0-9] DECDIGIT* '.' [0-9] DECDIGIT* LITFLOAT_EXP? LITFLOAT_TY?
           | [0-9] DECDIGIT* LITFLOAT_EXP LITFLOAT_TY?
