@@ -118,7 +118,7 @@ stmt_not_just_expr : let_stmt
 block_last_element : expr_RL | mac_expr | expr_stmt ;
 mac_expr : ident NOT /*loose*/ parendelim ;
 
-let_stmt : LET (MUT)? local_var_decl (COMMA local_var_decl)? SEMI ;
+let_stmt : LET (MUT)? local_var_decl (COMMA local_var_decl)* SEMI ;
 local_var_decl : pat (COLON ty)? (EQ expr)? ;
 
 // not treating '_' specially... I don't think I have to.
