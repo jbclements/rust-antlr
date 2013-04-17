@@ -232,7 +232,7 @@ expr_4 : expr_4 LT expr_5
   ;
 // there is no precedence 5 ...
 expr_5 : expr_6;
-expr_6 : expr_6 OR expr_7
+expr_6 : expr_6 OR OR expr_7
   | expr_7 ;
 expr_7 : expr_7 CARET expr_8
   | expr_8 ;
