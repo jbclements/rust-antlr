@@ -141,7 +141,7 @@ pat : AT pat
   ;
 maybe_pats : /* nothing */ | pats ;
 pats : pat (COMMA)? | pat COMMA pats ;
-pats_or : pat | pat OR pats ;
+pats_or : pat | pat OR pats_or ;
 
 const_item : STATIC ident COLON ty EQ expr SEMI ;
 
@@ -343,8 +343,8 @@ expr_bottomRL : /*loose*/ parendelim
   | COPYTOK expr
     // this is an ambiguity, right?
   | expr_macro_invocation
-  | path_with_tps /*loose */ bracedelim //LBRACE field_exprs RBRACE
-  | path_with_tps
+  | path_with_colon_tps /*loose */ bracedelim //LBRACE field_exprs RBRACE
+  | path_with_colon_tps
   | lit
   ;
 
