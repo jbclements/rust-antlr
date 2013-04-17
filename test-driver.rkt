@@ -72,6 +72,6 @@
              f result errtext)))
   1))
 
-(run-tests "/Users/clements/rust/src/test/run-pass/"
+(run-tests "/Users/clements/rust/src"
            parser-dont-try-list
            "prog")

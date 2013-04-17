@@ -7,3 +7,6 @@
 *.war
 *.ear
 *~
+
+.DS_Store
+*.dSYM/
