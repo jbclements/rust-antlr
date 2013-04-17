@@ -133,12 +133,11 @@ pat : AT pat
   | exprRB (DOTDOT exprRB)?
   | REF mutability pat_ident
   | COPYTOK pat_ident
-  | path
   | path AT pat
-  | path MOD_SEP generics
-  | path (MOD_SEP generics)? LBRACE pat_fields RBRACE
-  | path (MOD_SEP generics)? LPAREN STAR RPAREN
-  | path (MOD_SEP generics)? LPAREN maybe_pats RPAREN
+  | path_with_colon_tps
+  | path_with_colon_tps LBRACE pat_fields RBRACE
+  | path_with_colon_tps LPAREN STAR RPAREN
+  | path_with_colon_tps LPAREN maybe_pats RPAREN
   ;
 maybe_pats : /* nothing */ | pats ;
 pats : pat (COMMA)? | pat COMMA pats ;
@@ -195,6 +194,7 @@ bound : STATIC_LIFETIME | ty | obsoletekind ;
 obsoletekind : COPYTOK | CONST ;
 
 
+maybe_colon_generics : /* nothing */ | MOD_SEP generics ;
 maybe_generics : /* nothing */ | generics ;
 generics : LT GT
   | LT generics_list GT ;
@@ -270,8 +270,8 @@ expr_bottom : /*loose*/ parendelim
   | BREAK (ident)?
   | COPYTOK expr
   | expr_macro_invocation
-  | path_with_tps /*loose*/ bracedelim 
-  | path_with_tps
+  | path_with_colon_tps /*loose*/ bracedelim 
+  | path_with_colon_tps
   | lit
   ;
 
@@ -439,6 +439,7 @@ expr_macro_invocation :
   | path_with_tps NOT bracedelim ;
 
 path_with_tps : path maybe_generics ;
+path_with_colon_tps : path maybe_colon_generics ;
 
 lit : TRUE
   | FALSE
