@@ -56,7 +56,7 @@
      #f
      #f
      (let ([ans (~a "java org.antlr.v4.runtime.misc.TestRig Rust "
-                    nonterm" -tree -encoding UTF-8 "
+                    nonterm" -encoding UTF-8 "
                     f)])
        (printf "~s\n" ans)
        ans)))
