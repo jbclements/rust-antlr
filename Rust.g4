@@ -6,12 +6,20 @@ grammar Rust;
 // add parse_opt_abi_thingy
 // NB: associativity may be wrong all over the place.
 
+// UNICODE: okay, I just got lost in Unicode Standard Annex #31,
+// "Unicode Identifier and Pattern Syntax".
+// I get the sense that Rust intends to abide by Unicode standards
+// for identifiers; what I've done in this file approximates this,
+// I believe.
+
 @lexer::members {
       public boolean followed_by_ident() {
 
         CharStream cs = getInputStream();
-        System.out.println("LA: "+cs.LA(1)+"\n");
-        return false;
+        int nextChar = cs.LA(1);
+        // KNOWN POTENTIAL ISSUE : this fn needs to be
+        // aligned with the list appearing in xidstart....
+        return (java.lang.Character.isUnicodeIdentifierStart(nextChar));
       }
 
     }
