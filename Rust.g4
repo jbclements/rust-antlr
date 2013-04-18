@@ -13,13 +13,15 @@ grammar Rust;
 // I believe.
 
 @lexer::members {
-      public boolean followed_by_ident() {
+      static int dotChar = 46;
+      public boolean followed_by_ident_or_dot() {
 
         CharStream cs = getInputStream();
         int nextChar = cs.LA(1);
         // KNOWN POTENTIAL ISSUE : this fn needs to be
         // aligned with the list appearing in xidstart....
-        return (java.lang.Character.isUnicodeIdentifierStart(nextChar));
+        return (java.lang.Character.isUnicodeIdentifierStart(nextChar)
+                || nextChar == dotChar);
       }
 
     }
@@ -671,7 +673,7 @@ LIT_INT   : LIT_CHAR
           ;
 
 // we definitely need lookahead here...
-LIT_FLOAT : [0-9] DECDIGIT* '.' {!followed_by_ident()}?
+LIT_FLOAT : [0-9] DECDIGIT* '.' {!followed_by_ident_or_dot()}?
           // nb: digit following '.' can't be underscore.
           | [0-9] DECDIGIT* '.' [0-9] DECDIGIT* LITFLOAT_EXP? LITFLOAT_TY?
           | [0-9] DECDIGIT* LITFLOAT_EXP LITFLOAT_TY?
