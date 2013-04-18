@@ -24,6 +24,10 @@ grammar Rust;
                 || nextChar == dotChar);
       }
 
+      public boolean at_beginning_of_file() {
+        return (getInputStream().index() == 0);
+      }
+
     }
 
     
@@ -711,6 +715,7 @@ INNER_DOC_COMMENT : '//!' ~[\n]*
 WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs, newlines
 OTHER_LINE_COMMENT : '//' ~[\n] * -> skip ;
 OTHER_BLOCK_COMMENT : '/*' (~[*] | ('*'+ ~[*/]))* '*'+ '/' -> skip ;
+SHEBANG_LINE : {at_beginning_of_file()}? '#!' ~[\n]* '\n' -> skip ;
 
 BINDIGIT : [0-1_] ;
 DECDIGIT : [0-9_] ;
