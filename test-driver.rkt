@@ -1,5 +1,7 @@
 #lang racket
 
+(require racket/generator)
+
 (define dev-null (open-output-file "/dev/null"
                                    #:exists 'update))
 
@@ -44,34 +46,70 @@
         #rx"src/test/run-pass/issue-2101.rs"
         #rx"src/test/run-pass/issue-2190.rs"))
 
-(define (run-tests directory skip-list nonterm)
-(for/sum ([f (in-directory directory)]
-          #:when (regexp-match #px".*\\.rs$" f)
-          #:unless (ormap (lambda (pat) (regexp-match pat f))
-                          skip-list)
-          )
-  (match-define (list _1 stdin _2 stderr control)
-    (process/ports 
-     dev-null
-     #f
-     #f
-     (let ([ans (~a "java org.antlr.v4.runtime.misc.TestRig Rust "
-                    nonterm" -encoding UTF-8 "
-                    f)])
-       (printf "~s\n" ans)
-       ans)))
-  (close-output-port stdin)
-  (control 'wait)
-  (define result (control 'status))
-  (define errtext (first (regexp-match #px".*" stderr)))
-  (close-input-port stderr)
-  (when (or (not (eq? 'done-ok result))
-            (not (equal? errtext #"")))
-    (error 
-     (format "test of file ~s failed with result ~s and stderr\n~a"
-             f result errtext)))
-  1))
+;; construct a stream of file names for testing.
+(define (make-file-name-stream directory skip-list)
+  (generator ()
+   (for ([f (in-directory directory)]
+             #:when (regexp-match #px".*\\.rs$" f)
+             #:unless (ormap (lambda (pat) (regexp-match pat f))
+                             skip-list)
+             )
+     (yield (path->string f)))))
 
-(run-tests "/Users/clements/rust/src"
+(define a (make-file-name-stream "/Users/clements/rust/src"
+           parser-dont-try-list))
+
+
+(define (generator-take generator n)
+  (cond [(= n 0) empty]
+        [else
+         (define next (generator))
+         (cond [(void? next) empty]
+               [(cons next (generator-take generator (sub1 n)))])]))
+
+;; GRR: the testrig doesn't clearly signal parse failures....
+;; is this line indicative of an error?
+(define (is-errline? line)
+  (match line
+    [(regexp #px#"^/") #f]
+    [(regexp #px#"^line ") #t]
+    [(regexp #px#"") #f]
+    [other (error "can't categorize this line: ~e" line)]))
+
+;; return only the error lines from stderr
+(define (only-errlines errtxt)
+  (filter is-errline? (regexp-split #px"\n" errtxt)))
+
+(define (run-tests directory skip-list nonterm num-to-run-in-parallel)
+  (define filename-generator (make-file-name-stream directory skip-list))
+  (let loop ()
+    (define next-bunch (generator-take filename-generator num-to-run-in-parallel))
+    (cond [(empty? next-bunch) #f]
+          [else
+           (match-define (list _1 stdin _2 stderr control)
+             (process/ports 
+              dev-null
+              #f
+              #f
+              (let ([ans (~a "java org.antlr.v4.runtime.misc.TestRig Rust "
+                             nonterm" -encoding UTF-8 "
+                             (apply string-append (add-between next-bunch " ")))])
+                (printf "~s\n" ans)
+                ans)))
+           (close-output-port stdin)
+           (control 'wait)
+           (define result (control 'status))
+           (define errtext (first (regexp-match #px".*" stderr)))
+           (close-input-port stderr)
+           (define errlines (only-errlines errtext))
+           (when (or (not (eq? 'done-ok result))
+                     (not (empty? errlines)))
+             (error 
+              (format "test of files ~s failed with result ~s and stderr\n~a"
+                      next-bunch result errtext)))
+           (loop)])))
+
+(run-tests "/Users/clements/rust/src/libcore"
            parser-dont-try-list
-           "prog")
+           "prog"
+           8)
