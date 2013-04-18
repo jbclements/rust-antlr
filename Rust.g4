@@ -34,7 +34,7 @@ tts : tt* ;
 prog : inner_attr* extern_mod_view_item* view_item* mod_item*;
 
 // MODULE ITEMS :
-extern_mod_view_item : outer_attrs visibility foreign_mod ;
+extern_mod_view_item : outer_attrs visibility EXTERN MOD ident maybe_meta_item_seq SEMI ;
 view_item : outer_attrs visibility use ;
 mod_item : outer_attrs visibility items_with_visibility
   | outer_attrs impl_trait_for_type
@@ -45,7 +45,7 @@ items_with_visibility : const_item
   | impl
   | mod_decl
   | EXTERN (LIT_STR)? item_fn_decl
-  | EXTERN MOD ident maybe_meta_item_seq SEMI
+  | foreign_mod
   | struct_decl
   | type_decl
   | trait_decl
