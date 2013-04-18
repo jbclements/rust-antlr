@@ -91,7 +91,7 @@
               dev-null
               #f
               #f
-              (let ([ans (~a "java org.antlr.v4.runtime.misc.TestRig Rust "
+              (let ([ans (~a "java -Xmx2g org.antlr.v4.runtime.misc.TestRig Rust "
                              nonterm" -encoding UTF-8 "
                              (apply string-append (add-between next-bunch " ")))])
                 (printf "~s\n" ans)
@@ -109,10 +109,11 @@
                       next-bunch result errtext)))
            (loop)])))
 
-(run-tests "/Users/clements/rust/src/libcore"
+(run-tests "/Users/clements/rust/src"
            parser-dont-try-list
            "prog"
-           16)
+           8)
 ;3:50:33 total 1-at-a-time
+;1:27.62 8-at-a-time
 ;1:15.73 total 16-at-a-time
 ;1:13.03 total 32-at-a-time
