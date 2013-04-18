@@ -112,4 +112,7 @@
 (run-tests "/Users/clements/rust/src/libcore"
            parser-dont-try-list
            "prog"
-           8)
+           16)
+;3:50:33 total 1-at-a-time
+;1:15.73 total 16-at-a-time
+;1:13.03 total 32-at-a-time
