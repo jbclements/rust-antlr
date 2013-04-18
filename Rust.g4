@@ -131,11 +131,11 @@ pat : AT pat
   | /* loose */ bracketdelim // vectors
     // really, it's fairly weird to allow any expr here...
   | exprRB (DOTDOT exprRB)?
-  | REF mutability pat_ident
-  | COPYTOK pat_ident
+  | REF mutability ident
+  | COPYTOK ident
   | path AT pat
   | path_with_colon_tps
-  | path_with_colon_tps LBRACE pat_fields RBRACE
+  | path_with_colon_tps /*loose*/ bracedelim // LBRACE pat_fields RBRACE
   | path_with_colon_tps LPAREN STAR RPAREN
   | path_with_colon_tps LPAREN maybe_pats RPAREN
   ;
@@ -159,8 +159,6 @@ view_path : MOD? ident EQ non_global_path
 mutability : MUT | CONST | /* nothing */  ;
 
 // UNIMPLEMENTED:
-expr_no_bar_op : STAR STAR ;
-pat_ident : STAR STAR ;
 pat_fields : STAR STAR ;
 
 outer_attrs : /* nothing */ | outer_attr outer_attrs ;
@@ -258,7 +256,12 @@ expr_prefix : NOT expr_prefix
   | TILDE expr_prefix
   | expr_dot_or_call
   ;
-expr_dot_or_call : expr_bottom expr_dot_or_call_suffix ;
+expr_dot_or_call
+  : expr_dot_or_call DOT ident (MOD_SEP generics)? (/*loose*/parendelim)?
+  | expr_dot_or_call /*loose*/parendelim
+  | expr_dot_or_call /*loose*/bracketdelim
+  | expr_bottom
+  ;
 expr_bottom : /*loose*/ parendelim
   | expr_lambda
   | expr_stmt
@@ -330,7 +333,13 @@ expr_prefixRL : NOT expr_prefix
   | TILDE expr_prefix
   | expr_dot_or_callRL
   ;
-expr_dot_or_callRL : expr_bottomRL expr_dot_or_call_suffix ;
+expr_dot_or_callRL
+    // strange exception here: we allow .f() after stmt_exprs
+  : expr_dot_or_call DOT ident (MOD_SEP generics)? (/*loose*/parendelim)?
+  | expr_dot_or_callRL /*loose*/parendelim
+  | expr_dot_or_callRL /*loose*/bracketdelim
+  | expr_bottomRL
+  ;
 expr_bottomRL : /*loose*/ parendelim
   | expr_lambda
   // no expr_stmt here
@@ -416,11 +425,6 @@ match_clauses : match_final_clause | match_clause match_clauses ;
 match_final_clause : pats_or (IF expr)? FAT_ARROW (expr_RL | expr_stmt_not_block | expr_stmt_block ) (COMMA)? ;
 match_clause : pats_or (IF expr)? FAT_ARROW (expr_RL COMMA | expr_stmt_not_block COMMA | expr_stmt_block (COMMA)? ) ;
 
-expr_dot_or_call_suffix : DOT ident (MOD_SEP generics)? (/*loose*/parendelim)? expr_dot_or_call_suffix
-  | /*loose*/parendelim expr_dot_or_call_suffix
-  | /*loose*/bracketdelim expr_dot_or_call_suffix
-  | /* nothing */
-  ;
 expr_lambda : OR maybe_fn_block_args OR expr ;
 
 // SELF and STATIC may be used as identifiers
