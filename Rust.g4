@@ -202,7 +202,7 @@ generics_list : lifetime
   | lifetime COMMA generics_list
   | ty_seq ;
 
-maybe_lifetimes : /*nothing*/ | lifetimes ;
+maybe_lifetimes : /*nothing*/ | LT GT | LT lifetimes GT ;
 lifetimes : lifetime | lifetime COMMA lifetimes ;
 
 ident_seq : ident (COMMA)? | ident COMMA ident_seq ;
@@ -422,7 +422,8 @@ expr_loop
   : LOOP (UNSAFE)? block
   | LOOP ident COLON block
   ;
-expr_match : MATCH expr LBRACE match_clauses RBRACE ;
+expr_match : MATCH expr LBRACE maybe_match_clauses RBRACE ;
+maybe_match_clauses : /* nothing */ | match_clauses ;
 match_clauses : match_final_clause | match_clause match_clauses ;
 match_final_clause : pats_or (IF expr)? FAT_ARROW (expr_RL | expr_stmt_not_block | expr_stmt_block ) (COMMA)? ;
 match_clause : pats_or (IF expr)? FAT_ARROW (expr_RL COMMA | expr_stmt_not_block COMMA | expr_stmt_block (COMMA)? ) ;
