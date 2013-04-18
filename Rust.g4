@@ -387,9 +387,12 @@ expr_5RBB : expr_7;
 // things that can be either statements (without semicolons) or expressions
 // these can't appear in certain positions, e.g. 'if true {3} else {4} + 19'
 expr_stmt
+  : expr_stmt_block
+  | expr_stmt_not_block
+  ;
+expr_stmt_block
   : block
   | UNSAFE block
-  | expr_stmt_not_block
   ;
 expr_stmt_not_block
   : expr_if
@@ -410,8 +413,8 @@ expr_loop
   ;
 expr_match : MATCH expr LBRACE match_clauses RBRACE ;
 match_clauses : match_final_clause | match_clause match_clauses ;
-match_final_clause : pats_or (IF expr)? FAT_ARROW (expr_RL | expr_stmt_not_block | block ) (COMMA)? ;
-match_clause : pats_or (IF expr)? FAT_ARROW (expr_RL COMMA | expr_stmt_not_block COMMA | block (COMMA)? ) ;
+match_final_clause : pats_or (IF expr)? FAT_ARROW (expr_RL | expr_stmt_not_block | expr_stmt_block ) (COMMA)? ;
+match_clause : pats_or (IF expr)? FAT_ARROW (expr_RL COMMA | expr_stmt_not_block COMMA | expr_stmt_block (COMMA)? ) ;
 
 expr_dot_or_call_suffix : DOT ident (MOD_SEP generics)? (/*loose*/parendelim)? expr_dot_or_call_suffix
   | /*loose*/parendelim expr_dot_or_call_suffix
