@@ -2,9 +2,9 @@ grammar Rust;
 
 // splitting issues: &&, <<, >>, >>=, ||
 // be more consistent in use of *_list, *_seq, and *s.
-// worry about restrictions, incl. "expr-is-complete"
 // add parse_opt_abi_thingy
 // NB: associativity may be wrong all over the place.
+// re-check trailing comma legal locations
 
 // UNICODE: okay, I just got lost in Unicode Standard Annex #31,
 // "Unicode Identifier and Pattern Syntax".
@@ -59,18 +59,26 @@ items_with_visibility : const_item
   ;
 mod_decl : MOD ident SEMI
   | MOD ident LBRACE module_contents RBRACE ;
-struct_decl : STRUCT ident (generic_decls)? /*loose*/ bracedelim
-  | STRUCT ident (generic_decls)? /*loose*/ parendelim SEMI
+struct_decl : STRUCT ident (generic_decls)? LBRACE (struct_fields)? RBRACE 
+  | STRUCT ident (generic_decls)? LPAREN (tys?) RPAREN SEMI
   | STRUCT ident (generic_decls)? SEMI ;
 impl : IMPL (generic_decls)? ty impl_body ;
 impl_trait_for_type : IMPL (generic_decls)? trait FOR ty impl_body ;
 type_decl : TYPE ident (generic_decls)? EQ ty SEMI ;
 enum_decl : ENUM ident (generic_decls)? EQ ty SEMI
-  | ENUM ident (generic_decls)? bracedelim ; // LBRACE (enum_variant_decls)? RBRACE ;
-//enum_variant_decls : enum_variant_decl | enum_variant_decls COMMA enum_variant_decl ;
-//enum_variant_decl : outer_attrs visibility LBRACE struct_variant_kind
-//  | outer_attrs visibility LPAREN (tys_no_trailing_comma)? RPAREN
-//  | outer_attrs visibility EQ xxxx ;
+  | ENUM ident (generic_decls)? LBRACE (enum_variant_decls)? RBRACE ;
+enum_variant_decls : enum_variant_decl COMMA enum_variant_decls | enum_variant_decl (COMMA)? ;
+enum_variant_decl : outer_attrs visibility ident LBRACE (struct_fields)? RBRACE
+  | outer_attrs visibility ident LPAREN (tys)? RPAREN
+  | outer_attrs visibility ident EQ expr
+  | outer_attrs visibility ident
+  ;
+// trailing comma allowed:
+struct_fields : struct_field COMMA struct_fields | struct_field (COMMA)? ;
+struct_field
+  : outer_attrs visibility mutability ident COLON ty
+  | outer_attrs DROP block
+  ;
 trait_decl: TRAIT ident (generic_decls)? (COLON trait_list)? /*loose*/ bracedelim ;
 macro_item: path NOT (ident)? parendelim
   | path NOT (ident)? bracedelim ;
@@ -80,7 +88,9 @@ foreign_mod :  EXTERN (LIT_STR)? MOD ident /*loose*/ bracedelim
   | EXTERN (LIT_STR)? /*loose*/bracedelim ;
 
 
-visibility : (PUB | PRIV)? ;
+visibility : PUB | PRIV | /*nothing*/ ;
+// overly loose on "const", but soon it will disappear completely?
+mutability : MUT | CONST | /*nothing*/ ;
 
 trait_list : trait | trait PLUS trait_list ;
 
@@ -89,13 +99,13 @@ impl_body : SEMI
   | /*loose*/ bracedelim ;
 
 args : arg | args COMMA args ;
-arg : (arg_mode)? (MUT)? pat COLON ty ;
+arg : (arg_mode)? mutability pat COLON ty ;
 arg_mode : AND AND | PLUS | obsoletemode ;
 // obsolete ++ mode used in librustc/middle/region.rs
 obsoletemode : PLUS PLUS ;
 
 fn_block_args : fn_block_arg | fn_block_arg COMMA fn_block_args ;
-fn_block_arg : (arg_mode)? (MUT)? pat (COLON ty)? ;
+fn_block_arg : (arg_mode)? mutability pat (COLON ty)? ;
 
 
 
@@ -126,7 +136,7 @@ stmt_not_just_expr : let_stmt
 block_last_element : expr_RL | mac_expr | expr_stmt ;
 mac_expr : ident NOT /*loose*/ parendelim ;
 
-let_stmt : LET (MUT)? local_var_decl (COMMA local_var_decl)* SEMI ;
+let_stmt : LET mutability local_var_decl (COMMA local_var_decl)* SEMI ;
 local_var_decl : pat (COLON ty)? (EQ expr)? ;
 
 // not treating '_' specially... I don't think I have to.
@@ -163,7 +173,6 @@ view_path : MOD? ident EQ non_global_path
   | MOD? non_global_path
   ;
 
-mutability : MUT | CONST | /* nothing */  ;
 
 // UNIMPLEMENTED:
 pat_fields : STAR STAR ;
@@ -201,7 +210,7 @@ generics : LT GT
   | LT generics_list GT ;
 generics_list : lifetime
   | lifetime COMMA generics_list
-  | ty_seq ;
+  | tys ;
 
 lifetimes_in_braces : LT (lifetimes)? GT ;
 lifetimes : lifetime | lifetimes COMMA lifetime ;
@@ -255,7 +264,7 @@ expr_prefix : NOT expr_prefix
   | MINUS expr_prefix
   | STAR expr_prefix
   | AND (lifetime)? mutability expr_prefix
-  | AT (MUT)? expr_prefix
+  | AT mutability expr_prefix
   | TILDE expr_prefix
   | expr_dot_or_call
   ;
@@ -332,7 +341,7 @@ expr_prefixRL : NOT expr_prefix
   | MINUS expr_prefix
   | STAR expr_prefix
   | AND (lifetime)? mutability expr_prefix
-  | AT (MUT)? expr_prefix
+  | AT mutability expr_prefix
   | TILDE expr_prefix
   | expr_dot_or_callRL
   ;
@@ -432,7 +441,7 @@ expr_lambda : OR (fn_block_args)? OR expr ;
 
 // SELF and STATIC may be used as identifiers
 // not sure about underscore. should it even be a token?
-ident : IDENT | SELF | STATIC | UNDERSCORE ;
+ident : IDENT | SELF | STATIC ;
 lifetime : STATIC_LIFETIME | LIFETIME ;
 
 field_exprs : field_expr field_trailer
@@ -464,7 +473,7 @@ trait : path (generics)? ;
 ty : LPAREN RPAREN
   | LPAREN ty RPAREN
   | LPAREN ty COMMA RPAREN
-  | LPAREN ty_seq RPAREN
+  | LPAREN tys RPAREN
   | AT box_or_uniq_pointee
   | TILDE box_or_uniq_pointee
   | STAR mutability ty
@@ -477,7 +486,7 @@ ty : LPAREN RPAREN
   | ty_closure
   | path (generics)?
   ;
-ty_seq : ty | ty COMMA ty_seq ;
+tys : ty | tys COMMA ty ;
 box_or_uniq_pointee : (lifetime)? ty_closure
   | mutability ty ;
 borrowed_pointee : (lifetime)? ty_closure
@@ -577,7 +586,6 @@ nondelim
   |  LIT_STR
   // Name components 
   |  IDENT
-  |  UNDERSCORE
   |  STATIC_LIFETIME
   |  LIFETIME
   // For interpolation
@@ -683,7 +691,6 @@ LIT_FLOAT : [0-9] DECDIGIT* '.' {!followed_by_ident_or_dot()}?
 
 LIT_STR : '\"' STRCHAR* '\"' ;
 IDENT : IDSTART IDCONT* ;
-UNDERSCORE : '_' ;
 
 
 // there's potential ambiguity with char constants,
