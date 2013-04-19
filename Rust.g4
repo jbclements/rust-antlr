@@ -37,10 +37,11 @@ import "xidstart" , "xidcont";
 tts : tt* ;
 
 // parsing a whole file as a 'prog' will be spotty.
-prog : inner_attr* extern_mod_view_item* view_item* mod_item*;
+prog : module_contents ;
+module_contents : inner_attr* extern_mod_view_item* view_item* mod_item*;
 
 // MODULE ITEMS :
-extern_mod_view_item : outer_attrs visibility EXTERN MOD ident maybe_meta_item_seq SEMI ;
+extern_mod_view_item : outer_attrs visibility EXTERN MOD ident (LPAREN (meta_item_seq)? RPAREN)? SEMI ;
 view_item : outer_attrs visibility use ;
 mod_item : outer_attrs visibility items_with_visibility
   | outer_attrs impl_trait_for_type
@@ -57,20 +58,24 @@ items_with_visibility : const_item
   | trait_decl
   ;
 mod_decl : MOD ident SEMI
-  | MOD ident /*loose*/ bracedelim ;
-struct_decl : STRUCT ident maybe_generic_decls /*loose*/ bracedelim
-  | STRUCT ident maybe_generic_decls /*loose*/ parendelim SEMI
-  | STRUCT ident maybe_generic_decls SEMI ;
-impl : IMPL maybe_generic_decls ty impl_body ;
-impl_trait_for_type : IMPL maybe_generic_decls trait FOR ty impl_body ;
-type_decl : TYPE ident maybe_generic_decls EQ ty SEMI ;
-enum_decl : ENUM ident maybe_generic_decls EQ ty SEMI
-  | ENUM ident maybe_generic_decls /* loose: */ bracedelim ;
-trait_decl: TRAIT ident maybe_generic_decls (COLON trait_list)? /*loose*/ bracedelim ;
+  | MOD ident LBRACE module_contents RBRACE ;
+struct_decl : STRUCT ident (generic_decls)? /*loose*/ bracedelim
+  | STRUCT ident (generic_decls)? /*loose*/ parendelim SEMI
+  | STRUCT ident (generic_decls)? SEMI ;
+impl : IMPL (generic_decls)? ty impl_body ;
+impl_trait_for_type : IMPL (generic_decls)? trait FOR ty impl_body ;
+type_decl : TYPE ident (generic_decls)? EQ ty SEMI ;
+enum_decl : ENUM ident (generic_decls)? EQ ty SEMI
+  | ENUM ident (generic_decls)? bracedelim ; // LBRACE (enum_variant_decls)? RBRACE ;
+//enum_variant_decls : enum_variant_decl | enum_variant_decls COMMA enum_variant_decl ;
+//enum_variant_decl : outer_attrs visibility LBRACE struct_variant_kind
+//  | outer_attrs visibility LPAREN (tys_no_trailing_comma)? RPAREN
+//  | outer_attrs visibility EQ xxxx ;
+trait_decl: TRAIT ident (generic_decls)? (COLON trait_list)? /*loose*/ bracedelim ;
 macro_item: path NOT (ident)? parendelim
   | path NOT (ident)? bracedelim ;
 use : USE view_paths SEMI ;
-item_fn_decl : FN ident maybe_generic_decls LPAREN maybe_args RPAREN ret_ty fun_body ;
+item_fn_decl : FN ident (generic_decls)? LPAREN (args)? RPAREN ret_ty fun_body ;
 foreign_mod :  EXTERN (LIT_STR)? MOD ident /*loose*/ bracedelim
   | EXTERN (LIT_STR)? /*loose*/bracedelim ;
 
@@ -83,14 +88,12 @@ trait_list : trait | trait PLUS trait_list ;
 impl_body : SEMI
   | /*loose*/ bracedelim ;
 
-maybe_args : /* nothing */ | args ;
-args : arg | arg COMMA args ;
+args : arg | args COMMA args ;
 arg : (arg_mode)? (MUT)? pat COLON ty ;
 arg_mode : AND AND | PLUS | obsoletemode ;
 // obsolete ++ mode used in librustc/middle/region.rs
 obsoletemode : PLUS PLUS ;
 
-maybe_fn_block_args : /* nothing */ | fn_block_args ;
 fn_block_args : fn_block_arg | fn_block_arg COMMA fn_block_args ;
 fn_block_arg : (arg_mode)? (MUT)? pat (COLON ty)? ;
 
@@ -101,8 +104,7 @@ ret_ty : RARROW NOT
   | RARROW ty
   | /* nothing */
   ;
-maybe_tylike_args : /*nothing*/ | tylike_args ;
-tylike_args : tylike_arg | tylike_arg COMMA tylike_args ;
+tylike_args : tylike_arg | tylike_args COMMA tylike_arg ;
 tylike_arg : arg | ty ;
 
 fun_body : LBRACE inner_attr* view_item* block_element* block_last_element? RBRACE ;
@@ -143,9 +145,8 @@ pat : AT pat
   | path_with_colon_tps
   | path_with_colon_tps /*loose*/ bracedelim // LBRACE pat_fields RBRACE
   | path_with_colon_tps LPAREN STAR RPAREN
-  | path_with_colon_tps LPAREN maybe_pats RPAREN
+  | path_with_colon_tps LPAREN (pats)? RPAREN
   ;
-maybe_pats : /* nothing */ | pats ;
 pats : pat (COMMA)? | pat COMMA pats ;
 pats_or : pat | pat OR pats_or ;
 
@@ -174,17 +175,14 @@ inner_attr : POUND LBRACKET meta_item RBRACKET SEMI
   | INNER_DOC_COMMENT ;
 meta_item : ident
   | ident EQ lit
-  | ident LPAREN meta_item_seq RPAREN ;
-meta_item_seq : | meta_item_nonempty_seq ;
-meta_item_nonempty_seq : meta_item
-  | meta_item COMMA meta_item_nonempty_seq ;
-maybe_meta_item_seq : /*nothing*/ | LPAREN meta_item_seq RPAREN;
+  | ident LPAREN (meta_item_seq)? RPAREN ;
+meta_item_seq : meta_item
+  | meta_item COMMA meta_item_seq ;
 
 
 
 // from a parser standpoint, it would be simpler just
 // to allow lifetimes and type params to be intermixed.
-maybe_generic_decls : /* nothing */ | generic_decls ;
 generic_decls : LT GT
   | LT generic_decls_list GT ;
 generic_decls_list : lifetime
@@ -198,16 +196,15 @@ bound : STATIC_LIFETIME | ty | obsoletekind ;
 obsoletekind : COPYTOK | CONST ;
 
 
-maybe_colon_generics : /* nothing */ | MOD_SEP generics ;
-maybe_generics : /* nothing */ | generics ;
+colon_generics : MOD_SEP generics ;
 generics : LT GT
   | LT generics_list GT ;
 generics_list : lifetime
   | lifetime COMMA generics_list
   | ty_seq ;
 
-maybe_lifetimes : /*nothing*/ | LT GT | LT lifetimes GT ;
-lifetimes : lifetime | lifetime COMMA lifetimes ;
+lifetimes_in_braces : LT (lifetimes)? GT ;
+lifetimes : lifetime | lifetimes COMMA lifetime ;
 
 ident_seq : ident (COMMA)? | ident COMMA ident_seq ;
 
@@ -419,20 +416,19 @@ expr_stmt_not_block
   ;
 
 expr_if : IF expr block (ELSE (block | expr_if))? ;
-expr_for : FOR expr_RBB (OR maybe_fn_block_args OR)? block;
-expr_do : DO expr_RBB (OR maybe_fn_block_args OR)? block;
+expr_for : FOR expr_RBB (OR (fn_block_args)? OR)? block;
+expr_do : DO expr_RBB (OR (fn_block_args)? OR)? block;
 expr_while : WHILE expr block ;
 expr_loop
   : LOOP (UNSAFE)? block
   | LOOP ident COLON block
   ;
-expr_match : MATCH expr LBRACE maybe_match_clauses RBRACE ;
-maybe_match_clauses : /* nothing */ | match_clauses ;
+expr_match : MATCH expr LBRACE (match_clauses)? RBRACE ;
 match_clauses : match_final_clause | match_clause match_clauses ;
 match_final_clause : pats_or (IF expr)? FAT_ARROW (expr_RL | expr_stmt_not_block | expr_stmt_block ) (COMMA)? ;
 match_clause : pats_or (IF expr)? FAT_ARROW (expr_RL COMMA | expr_stmt_not_block COMMA | expr_stmt_block (COMMA)? ) ;
 
-expr_lambda : OR maybe_fn_block_args OR expr ;
+expr_lambda : OR (fn_block_args)? OR expr ;
 
 // SELF and STATIC may be used as identifiers
 // not sure about underscore. should it even be a token?
@@ -452,8 +448,8 @@ expr_macro_invocation :
     path_with_tps NOT parendelim
   | path_with_tps NOT bracedelim ;
 
-path_with_tps : path maybe_generics ;
-path_with_colon_tps : path maybe_colon_generics ;
+path_with_tps : path (generics)? ;
+path_with_colon_tps : path (colon_generics)? ;
 
 lit : TRUE
   | FALSE
@@ -464,7 +460,7 @@ lit : TRUE
 
 // trait : ty that gets parsed as a ty_path
 // BUG IN PARSER: (A) parses as a trait.
-trait : path maybe_generics ;
+trait : path (generics)? ;
 ty : LPAREN RPAREN
   | LPAREN ty RPAREN
   | LPAREN ty COMMA RPAREN
@@ -472,21 +468,21 @@ ty : LPAREN RPAREN
   | AT box_or_uniq_pointee
   | TILDE box_or_uniq_pointee
   | STAR mutability ty
-  | path maybe_generics
+  | path (generics)?
   | LBRACKET obsoleteconst ty COMMA DOTDOT expr RBRACKET
   | LBRACKET obsoleteconst ty RBRACKET
   | AND borrowed_pointee
     // something going in here re: ABI
-  | EXTERN (LIT_STR)? (UNSAFE)? FN maybe_lifetimes LPAREN maybe_tylike_args RPAREN ret_ty
+  | EXTERN (LIT_STR)? (UNSAFE)? FN (lifetimes_in_braces)? LPAREN (tylike_args)? RPAREN ret_ty
   | ty_closure
-  | path maybe_generics
+  | path (generics)?
   ;
 ty_seq : ty | ty COMMA ty_seq ;
 box_or_uniq_pointee : (lifetime)? ty_closure
   | mutability ty ;
 borrowed_pointee : (lifetime)? ty_closure
   | (lifetime)? mutability ty ;
-ty_closure : (UNSAFE)? (ONCE)? FN maybe_lifetimes LPAREN maybe_tylike_args RPAREN ret_ty ;
+ty_closure : (UNSAFE)? (ONCE)? FN (lifetimes_in_braces)? LPAREN (tylike_args)? RPAREN ret_ty ;
 
 // obsolete:
 obsoleteconst : (CONST)? ;

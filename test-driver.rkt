@@ -44,7 +44,11 @@
         #rx"src/test/run-pass/infinite-loops.rs"
         #rx"src/test/run-pass/int-conversion-coherence.rs"
         #rx"src/test/run-pass/issue-2101.rs"
-        #rx"src/test/run-pass/issue-2190.rs"))
+        #rx"src/test/run-pass/issue-2190.rs"
+        ;; says it isn't a test... very confusing
+        #rx"src/test/run-pass/select-macro.rs"
+        ;; just a sketch of what traits were going to look like.
+        #rx"src/test/run-pass/traits.rs"))
 
 ;; construct a stream of file names for testing.
 (define (make-file-name-stream directory skip-list)
@@ -80,39 +84,57 @@
 (define (only-errlines errtxt)
   (filter is-errline? (regexp-split #px"\n" errtxt)))
 
-(define (run-tests directory skip-list nonterm num-to-run-in-parallel)
+;; run the parser on all files in the given directory, skipping the 
+;; ones matching the "skip-list" list of patterns, parsing using 
+;; the nonterminal specified by 'nonterm', running the given number in
+;; parallel, and optionally skipping all files until finding one 
+;; that matches the 'start-with-pat' pattern
+(define (run-tests directory skip-list nonterm num-to-run-in-parallel 
+                   [start-with-pat #f])
   (define filename-generator (make-file-name-stream directory skip-list))
+  (when start-with-pat
+    (let loop ()
+      (define next (filename-generator))
+      (cond [(void? next) (error 'run-tests
+                                 "ran out of files while searching for pattern: ~e" start-with-pat)]
+            [(regexp-match start-with-pat next) (run-bunch nonterm (list next))]
+            [else (loop)])))
   (let loop ()
     (define next-bunch (generator-take filename-generator num-to-run-in-parallel))
     (cond [(empty? next-bunch) #f]
           [else
-           (match-define (list _1 stdin _2 stderr control)
-             (process/ports 
-              dev-null
-              #f
-              #f
-              (let ([ans (~a "java -Xmx2g org.antlr.v4.runtime.misc.TestRig Rust "
-                             nonterm" -encoding UTF-8 "
-                             (apply string-append (add-between next-bunch " ")))])
-                (printf "~s\n" ans)
-                ans)))
-           (close-output-port stdin)
-           (control 'wait)
-           (define result (control 'status))
-           (define errtext (first (regexp-match #px".*" stderr)))
-           (close-input-port stderr)
-           (define errlines (only-errlines errtext))
-           (when (or (not (eq? 'done-ok result))
-                     (not (empty? errlines)))
-             (error 
-              (format "test of files ~s failed with result ~s and stderr\n~a"
-                      next-bunch result errtext)))
+           (run-bunch nonterm next-bunch)
            (loop)])))
 
-(run-tests "/Users/clements/rust/src"
+;; test a bunch of files at once:
+(define (run-bunch nonterm bunch)
+  (match-define (list _1 stdin _2 stderr control)
+    (process/ports 
+     dev-null
+     #f
+     #f
+     (let ([ans (~a "java -Xmx2g org.antlr.v4.runtime.misc.TestRig Rust "
+                    nonterm" -encoding UTF-8 "
+                    (apply string-append (add-between bunch " ")))])
+       (printf "~s\n" ans)
+       ans)))
+  (close-output-port stdin)
+  (control 'wait)
+  (define result (control 'status))
+  (define errtext (first (regexp-match #px".*" stderr)))
+  (close-input-port stderr)
+  (define errlines (only-errlines errtext))
+  (when (or (not (eq? 'done-ok result))
+            (not (empty? errlines)))
+    (error 
+     (format "test of files ~s failed with result ~s and stderr\n~a"
+             bunch result errtext))))
+
+(run-tests "/Users/clements/tryrust/src/"
            parser-dont-try-list
            "prog"
-           8)
+           8
+           #px"zip-same-length.rs$")
 ;3:50:33 total 1-at-a-time
 ;1:27.62 8-at-a-time
 ;1:15.73 total 16-at-a-time
