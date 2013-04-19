@@ -133,8 +133,8 @@
 (run-tests "/Users/clements/tryrust/src/"
            parser-dont-try-list
            "prog"
-           8
-           #px"zip-same-length.rs$")
+           16
+           #;#px"zip-same-length.rs$")
 ;3:50:33 total 1-at-a-time
 ;1:27.62 8-at-a-time
 ;1:15.73 total 16-at-a-time
