@@ -79,7 +79,16 @@ struct_field
   : outer_attrs visibility mutability ident COLON ty
   | outer_attrs DROP block
   ;
-trait_decl: TRAIT ident (generic_decls)? (COLON trait_list)? /*loose*/ bracedelim ;
+trait_decl: TRAIT ident (generic_decls)? (COLON trait_list)? LBRACE trait_method* RBRACE ;
+trait_method : outer_attrs visibility purity ident (generics)? fn_decl_with_self thingy ;
+fn_decl_with_self : LPAREN (self_ty)? RPAREN;
+self_ty_and_args
+  : AND (lifetime)? mutability SELF (COMMA args)?
+  | AT mutability SELF (COMMA args)?
+  | TILDE mutability SELF (COMMA args)?
+  | SELF (COMMA args)?
+  | args
+  ;
 macro_item: path NOT (ident)? parendelim
   | path NOT (ident)? bracedelim ;
 use : USE view_paths SEMI ;
@@ -114,6 +123,7 @@ ret_ty : RARROW NOT
   | RARROW ty
   | /* nothing */
   ;
+// URK! BROKEN!
 tylike_args : tylike_arg | tylike_args COMMA tylike_arg ;
 tylike_arg : arg | ty ;
 
