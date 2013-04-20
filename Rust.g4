@@ -12,6 +12,11 @@ grammar Rust;
 // for identifiers; what I've done in this file approximates this,
 // I believe.
 
+// handling of macros is not yet a match for the parser, in part
+// because the parser does strange things; when there's a macro
+// in statement position, it parses it as a statement even if
+// it's an expression.
+
 @lexer::members {
       static int dotChar = 46;
       public boolean followed_by_ident_or_dot() {
@@ -93,8 +98,8 @@ self_ty_and_tylike_args
   : self_ty (COMMA tylike_args)?
   | tylike_args
   ;
-macro_item: path NOT (ident)? parendelim
-  | path NOT (ident)? bracedelim ;
+macro_item: ident NOT (ident)? parendelim
+  | ident NOT (ident)? bracedelim ;
 use : USE view_paths SEMI ;
 item_fn_decl : FN ident (generic_decls)? LPAREN (args)? RPAREN ret_ty fun_body ;
 foreign_mod :  EXTERN (LIT_STR)? MOD ident LBRACE inner_attr* foreign_item* RBRACE
@@ -152,13 +157,12 @@ block_element : expr_RL (SEMI)+
 stmt : expr_RL | stmt_not_just_expr ;
 // a statement that is not parsed by the expr_RL rule
 stmt_not_just_expr : let_stmt
-  | mac_expr
+  | macro_parens
   | mod_item
   | expr_stmt
   ;
 
-block_last_element : expr_RL | mac_expr | expr_stmt ;
-mac_expr : ident NOT /*loose*/ parendelim ;
+block_last_element : expr_RL | macro_parens | expr_stmt ;
 
 let_stmt : LET mutability local_var_decl (COMMA local_var_decl)* SEMI ;
 local_var_decl : pat (COLON ty)? (EQ expr)? ;
@@ -308,7 +312,9 @@ expr_bottom : /*loose*/ parendelim
   | RETURN
   | BREAK (ident)?
   | COPYTOK expr
-  | expr_macro_invocation
+    // this will overlap with the whole-stmt macro-invocation rule...
+    // I don't think I can bear to
+  | macro
   | path_with_colon_tps /*loose*/ bracedelim 
   | path_with_colon_tps
   | lit
@@ -387,7 +393,7 @@ expr_bottomRL : /*loose*/ parendelim
   | BREAK (ident)?
   | COPYTOK expr
     // this is an ambiguity, right?
-  | expr_macro_invocation
+  | macro
   | path_with_colon_tps /*loose */ bracedelim //LBRACE field_exprs RBRACE
   | path_with_colon_tps
   | lit
@@ -474,9 +480,14 @@ field_trailer : DOTDOT expr
 // unimplemented
 field_expr : mutability ident COLON expr ;
 
-expr_macro_invocation :
-    path_with_tps NOT parendelim
-  | path_with_tps NOT bracedelim ;
+macro
+  : macro_parens
+  | macro_braces ;
+// this one requires parens. I think this may be accidental,
+// because mod_item includes both kinds of macro invocation... and
+// this one can fall through to that one.
+macro_parens : ident NOT parendelim ;
+macro_braces : ident NOT bracedelim ;
 
 path_with_tps : path (generics)? ;
 path_with_colon_tps : path (colon_generics)? ;
