@@ -41,9 +41,9 @@ prog : module_contents ;
 module_contents : inner_attr* extern_mod_view_item* view_item* mod_item*;
 
 // MODULE ITEMS :
-extern_mod_view_item : outer_attrs visibility EXTERN MOD ident (LPAREN (meta_item_seq)? RPAREN)? SEMI ;
-view_item : outer_attrs visibility use ;
-mod_item : outer_attrs visibility items_with_visibility
+extern_mod_view_item : attrs_vis EXTERN MOD ident (LPAREN (meta_item_seq)? RPAREN)? SEMI ;
+view_item : attrs_vis use ;
+mod_item : attrs_vis items_with_visibility
   | outer_attrs impl_trait_for_type
   | macro_item ;
 items_with_visibility : const_item
@@ -68,33 +68,39 @@ type_decl : TYPE ident (generic_decls)? EQ ty SEMI ;
 enum_decl : ENUM ident (generic_decls)? EQ ty SEMI
   | ENUM ident (generic_decls)? LBRACE (enum_variant_decls)? RBRACE ;
 enum_variant_decls : enum_variant_decl COMMA enum_variant_decls | enum_variant_decl (COMMA)? ;
-enum_variant_decl : outer_attrs visibility ident LBRACE (struct_fields)? RBRACE
-  | outer_attrs visibility ident LPAREN (tys)? RPAREN
-  | outer_attrs visibility ident EQ expr
-  | outer_attrs visibility ident
+enum_variant_decl : attrs_vis ident LBRACE (struct_fields)? RBRACE
+  | attrs_vis ident LPAREN (tys)? RPAREN
+  | attrs_vis ident EQ expr
+  | attrs_vis ident
   ;
 // trailing comma allowed:
 struct_fields : struct_field COMMA struct_fields | struct_field (COMMA)? ;
 struct_field
-  : outer_attrs visibility mutability ident COLON ty
+  : attrs_vis mutability ident COLON ty
   | outer_attrs DROP block
   ;
 trait_decl: TRAIT ident (generic_decls)? (COLON trait_list)? LBRACE trait_method* RBRACE ;
-trait_method : outer_attrs visibility purity ident (generics)? fn_decl_with_self thingy ;
-fn_decl_with_self : LPAREN (self_ty)? RPAREN;
+trait_method
+  : attrs_vis (UNSAFE)? FN ident (generic_decls)? fn_args_with_self ret_ty SEMI
+  | attrs_vis (UNSAFE)? FN ident (generic_decls)? fn_args_with_self ret_ty fun_body;
+fn_args_with_self : LPAREN (self_ty_and_args)? RPAREN;
 self_ty_and_args
-  : AND (lifetime)? mutability SELF (COMMA args)?
-  | AT mutability SELF (COMMA args)?
-  | TILDE mutability SELF (COMMA args)?
-  | SELF (COMMA args)?
-  | args
+  : AND (lifetime)? mutability SELF (COMMA tylike_args)?
+  | AT mutability SELF (COMMA tylike_args)?
+  | TILDE mutability SELF (COMMA tylike_args)?
+  | SELF (COMMA tylike_args)?
+  | tylike_args
   ;
 macro_item: path NOT (ident)? parendelim
   | path NOT (ident)? bracedelim ;
 use : USE view_paths SEMI ;
 item_fn_decl : FN ident (generic_decls)? LPAREN (args)? RPAREN ret_ty fun_body ;
-foreign_mod :  EXTERN (LIT_STR)? MOD ident /*loose*/ bracedelim
-  | EXTERN (LIT_STR)? /*loose*/bracedelim ;
+foreign_mod :  EXTERN (LIT_STR)? MOD ident LBRACE inner_attr* foreign_item* RBRACE
+  | EXTERN (LIT_STR)? LBRACE inner_attr* foreign_item* RBRACE ;
+foreign_item
+  : outer_attrs STATIC ident COLON ty SEMI
+  | outer_attrs visibility (UNSAFE)? FN ident (generic_decls)? LPAREN (args)? RPAREN ret_ty SEMI
+  ;
 
 
 visibility : PUB | PRIV | /*nothing*/ ;
@@ -107,7 +113,7 @@ trait_list : trait | trait PLUS trait_list ;
 impl_body : SEMI
   | /*loose*/ bracedelim ;
 
-args : arg | args COMMA args ;
+args : arg | args COMMA arg ;
 arg : (arg_mode)? mutability pat COLON ty ;
 arg_mode : AND AND | PLUS | obsoletemode ;
 // obsolete ++ mode used in librustc/middle/region.rs
@@ -116,14 +122,13 @@ obsoletemode : PLUS PLUS ;
 fn_block_args : fn_block_arg | fn_block_arg COMMA fn_block_args ;
 fn_block_arg : (arg_mode)? mutability pat (COLON ty)? ;
 
-
+attrs_vis : outer_attrs visibility ;
 
 
 ret_ty : RARROW NOT
   | RARROW ty
   | /* nothing */
   ;
-// URK! BROKEN!
 tylike_args : tylike_arg | tylike_args COMMA tylike_arg ;
 tylike_arg : arg | ty ;
 
@@ -421,10 +426,7 @@ expr_stmt
   : expr_stmt_block
   | expr_stmt_not_block
   ;
-expr_stmt_block
-  : block
-  | UNSAFE block
-  ;
+expr_stmt_block : (UNSAFE)? block ;
 expr_stmt_not_block
   : expr_if
   | expr_match
