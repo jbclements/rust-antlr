@@ -35,7 +35,6 @@ grammar Rust;
 
     }
 
-
 import "xidstart" , "xidcont";
 
 // parsing a whole file as a 'tts' should work on current sources.
@@ -174,8 +173,7 @@ pat : AT pat
   | AND pat
   | LPAREN RPAREN
   | LPAREN pats RPAREN
-  | /* loose */ bracketdelim // vectors
-    // really, it's fairly weird to allow any expr here...
+  | LBRACKET (vec_pats)? RBRACKET
   | exprRB (DOTDOT exprRB)?
   | REF mutability ident
   | COPYTOK ident
@@ -187,7 +185,11 @@ pat : AT pat
   ;
 pats : pat (COMMA)? | pat COMMA pats ;
 pats_or : pat | pat OR pats_or ;
-
+vec_pats : pat
+  | DOTDOT ident
+  | pat COMMA vec_pats
+  | DOTDOT ident COMMA vec_pats_no_slice ;
+vec_pats_no_slice : pat | pat COMMA vec_pats_no_slice ;
 const_item : STATIC ident COLON ty EQ expr SEMI ;
 
 // at most one common field declaration?
