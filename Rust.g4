@@ -81,14 +81,16 @@ struct_field
   ;
 trait_decl: TRAIT ident (generic_decls)? (COLON trait_list)? LBRACE trait_method* RBRACE ;
 trait_method
-  : attrs_vis (UNSAFE)? FN ident (generic_decls)? fn_args_with_self ret_ty SEMI
-  | attrs_vis (UNSAFE)? FN ident (generic_decls)? fn_args_with_self ret_ty fun_body;
-fn_args_with_self : LPAREN (self_ty_and_args)? RPAREN;
-self_ty_and_args
-  : AND (lifetime)? mutability SELF (COMMA tylike_args)?
-  | AT mutability SELF (COMMA tylike_args)?
-  | TILDE mutability SELF (COMMA tylike_args)?
-  | SELF (COMMA tylike_args)?
+  : attrs_vis (UNSAFE)? FN ident (generic_decls)? tylike_args_with_self ret_ty SEMI
+  | attrs_vis (UNSAFE)? FN ident (generic_decls)? tylike_args_with_self ret_ty fun_body;
+tylike_args_with_self : LPAREN (self_ty_and_tylike_args)? RPAREN;
+self_ty
+  : AND (lifetime)? mutability SELF
+  | AT mutability SELF
+  | TILDE mutability SELF
+  | SELF ;
+self_ty_and_tylike_args
+  : self_ty (COMMA tylike_args)?
   | tylike_args
   ;
 macro_item: path NOT (ident)? parendelim
@@ -111,7 +113,14 @@ trait_list : trait | trait PLUS trait_list ;
 
 
 impl_body : SEMI
-  | /*loose*/ bracedelim ;
+  | LBRACE impl_method* RBRACE ;
+impl_method : attrs_vis (UNSAFE)? FN ident (generic_decls)? args_with_self ret_ty fun_body  ;
+args_with_self : LPAREN (self_ty_and_args)? RPAREN ;
+self_ty_and_args
+  : self_ty (COMMA args)?
+  | args
+  ;
+
 
 args : arg | args COMMA arg ;
 arg : (arg_mode)? mutability pat COLON ty ;
