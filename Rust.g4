@@ -203,7 +203,8 @@ view_path : MOD? ident EQ non_global_path
 
 // UNIMPLEMENTED:
 pat_fields
-  :
+  : IDENT (COLON pat)?
+  | IDENT (COLON pat)? COMMA pat_fields
   | UNDERSCORE
   ;
 
@@ -299,11 +300,12 @@ expr_prefix : NOT expr_prefix
   | expr_dot_or_call
   ;
 expr_dot_or_call
-  : expr_dot_or_call DOT ident (MOD_SEP generics)? (/*loose*/parendelim)?
+  : expr_dot_or_call DOT ident (MOD_SEP generics)? (LPAREN (exprs)? RPAREN)?
   | expr_dot_or_call /*loose*/parendelim
   | expr_dot_or_call /*loose*/bracketdelim
   | expr_bottom
   ;
+exprs : expr COMMA exprs | expr ;
 expr_bottom : /*loose*/ parendelim
   | expr_lambda
   | expr_stmt
@@ -379,7 +381,7 @@ expr_prefixRL : NOT expr_prefix
   ;
 expr_dot_or_callRL
     // strange exception here: we allow .f() after stmt_exprs
-  : expr_dot_or_call DOT ident (MOD_SEP generics)? (/*loose*/parendelim)?
+  : expr_dot_or_call DOT ident (MOD_SEP generics)? (LPAREN (exprs)? RPAREN)?
   | expr_dot_or_callRL /*loose*/parendelim
   | expr_dot_or_callRL /*loose*/bracketdelim
   | expr_bottomRL
