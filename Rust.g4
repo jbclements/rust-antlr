@@ -301,8 +301,8 @@ expr_prefix : NOT expr_prefix
   ;
 expr_dot_or_call
   : expr_dot_or_call DOT ident (MOD_SEP generics)? (LPAREN (exprs)? RPAREN)?
-  | expr_dot_or_call /*loose*/parendelim
-  | expr_dot_or_call /*loose*/bracketdelim
+  | expr_dot_or_call LPAREN (exprs)? RPAREN
+  | expr_dot_or_call LBRACKET expr RBRACKET
   | expr_bottom
   ;
 exprs : expr COMMA exprs | expr ;
@@ -382,8 +382,8 @@ expr_prefixRL : NOT expr_prefix
 expr_dot_or_callRL
     // strange exception here: we allow .f() after stmt_exprs
   : expr_dot_or_call DOT ident (MOD_SEP generics)? (LPAREN (exprs)? RPAREN)?
-  | expr_dot_or_callRL /*loose*/parendelim
-  | expr_dot_or_callRL /*loose*/bracketdelim
+  | expr_dot_or_callRL LPAREN (exprs)? RPAREN
+  | expr_dot_or_callRL LBRACKET expr RBRACKET
   | expr_bottomRL
   ;
 expr_bottomRL : /*loose*/ parendelim
