@@ -174,12 +174,13 @@ pat : AT pat
   | LPAREN RPAREN
   | LPAREN pats RPAREN
   | LBRACKET (vec_pats)? RBRACKET
+    // definitely ambiguity here with ident patterns
   | exprRB (DOTDOT exprRB)?
   | REF mutability ident
   | COPYTOK ident
   | path AT pat
   | path_with_colon_tps
-  | path_with_colon_tps /*loose*/ bracedelim // LBRACE pat_fields RBRACE
+  | path_with_colon_tps LBRACE pat_fields RBRACE
   | path_with_colon_tps LPAREN STAR RPAREN
   | path_with_colon_tps LPAREN (pats)? RPAREN
   ;
@@ -192,9 +193,6 @@ vec_pats : pat
 vec_pats_no_slice : pat | pat COMMA vec_pats_no_slice ;
 const_item : STATIC ident COLON ty EQ expr SEMI ;
 
-// at most one common field declaration?
-//enum_def : outer_at// loose:
-//    bracedelim ;
 view_paths : view_path | view_path COMMA view_paths ;
 view_path : MOD? ident EQ non_global_path
   | MOD? non_global_path MOD_SEP LBRACE RBRACE
@@ -203,9 +201,11 @@ view_path : MOD? ident EQ non_global_path
   | MOD? non_global_path
   ;
 
-
 // UNIMPLEMENTED:
-pat_fields : STAR STAR ;
+pat_fields
+  :
+  | UNDERSCORE
+  ;
 
 outer_attrs : /* nothing */ | outer_attr outer_attrs ;
 outer_attr : POUND LBRACKET meta_item RBRACKET
