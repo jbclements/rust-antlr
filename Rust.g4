@@ -2,7 +2,6 @@ grammar Rust;
 
 // splitting issues: &&, <<, >>, >>=, ||
 // be more consistent in use of *_list, *_seq, and *s.
-// add parse_opt_abi_thingy
 // NB: associativity may be wrong all over the place.
 // re-check trailing comma legal locations
 
@@ -80,15 +79,15 @@ foreign_mod
   | EXTERN (LIT_STR)? LBRACE inner_attr* foreign_item* RBRACE ;
 foreign_item
   : outer_attrs STATIC ident COLON ty SEMI
-  | outer_attrs visibility (UNSAFE)? FN ident (generic_decls)? LPAREN (args)? RPAREN ret_ty SEMI
+  | outer_attrs visibility (UNSAFE)? FN ident (LT (generic_decls)? GT)? LPAREN (args)? RPAREN ret_ty SEMI
   ;
 
-type_decl : TYPE ident (generic_decls)? EQ ty SEMI ;
+type_decl : TYPE ident (LT (generic_decls)? GT)? EQ ty SEMI ;
 
 struct_decl
-  : STRUCT ident (generic_decls)? LBRACE (struct_fields)? RBRACE
-  | STRUCT ident (generic_decls)? LPAREN (tys)? RPAREN SEMI
-  | STRUCT ident (generic_decls)? SEMI
+  : STRUCT ident (LT (generic_decls)? GT)? LBRACE (struct_fields)? RBRACE
+  | STRUCT ident (LT (generic_decls)? GT)? LPAREN (tys)? RPAREN SEMI
+  | STRUCT ident (LT (generic_decls)? GT)? SEMI
   ;
 // trailing comma allowed:
 struct_fields : struct_field COMMA struct_fields | struct_field (COMMA)? ;
@@ -98,8 +97,8 @@ struct_field
   ;
 
 enum_decl
-  : ENUM ident (generic_decls)? EQ ty SEMI
-  | ENUM ident (generic_decls)? LBRACE (enum_variant_decls)? RBRACE
+  : ENUM ident (LT (generic_decls)? GT)? EQ ty SEMI
+  | ENUM ident (LT (generic_decls)? GT)? LBRACE (enum_variant_decls)? RBRACE
   ;
 enum_variant_decls : enum_variant_decl COMMA enum_variant_decls | enum_variant_decl (COMMA)? ;
 enum_variant_decl
@@ -109,19 +108,19 @@ enum_variant_decl
   | attrs_and_vis ident
   ;
 
-trait_decl: TRAIT ident (generic_decls)? (COLON traits)? LBRACE trait_method* RBRACE ;
+trait_decl: TRAIT ident (LT (generic_decls)? GT)? (COLON traits)? LBRACE trait_method* RBRACE ;
 trait_method
-  : attrs_and_vis (UNSAFE)? FN ident (generic_decls)? LPAREN (self_ty_and_maybenamed_args)? RPAREN ret_ty SEMI
-  | attrs_and_vis (UNSAFE)? FN ident (generic_decls)? LPAREN (self_ty_and_maybenamed_args)? RPAREN ret_ty fun_body
+  : attrs_and_vis (UNSAFE)? FN ident (LT (generic_decls)? GT)? LPAREN (self_ty_and_maybenamed_args)? RPAREN ret_ty SEMI
+  | attrs_and_vis (UNSAFE)? FN ident (LT (generic_decls)? GT)? LPAREN (self_ty_and_maybenamed_args)? RPAREN ret_ty fun_body
   ;
 
-impl : IMPL (generic_decls)? ty impl_body ;
-impl_trait_for_type : IMPL (generic_decls)? trait FOR ty impl_body ;
+impl : IMPL (LT (generic_decls)? GT)? ty impl_body ;
+impl_trait_for_type : IMPL (LT (generic_decls)? GT)? trait FOR ty impl_body ;
 impl_body : SEMI
   | LBRACE impl_method* RBRACE ;
-impl_method : attrs_and_vis (UNSAFE)? FN ident (generic_decls)? LPAREN (self_ty_and_args)? RPAREN ret_ty fun_body  ;
+impl_method : attrs_and_vis (UNSAFE)? FN ident (LT (generic_decls)? GT)? LPAREN (self_ty_and_args)? RPAREN ret_ty fun_body  ;
 
-item_fn_decl : FN ident (generic_decls)? LPAREN (args)? RPAREN ret_ty fun_body ;
+item_fn_decl : FN ident (LT (generic_decls)? GT)? LPAREN (args)? RPAREN ret_ty fun_body ;
 fun_body : LBRACE inner_attr* view_item* block_element* (block_last_element)? RBRACE ;
 block : LBRACE view_item* block_element* (block_last_element)? RBRACE ;
 block_element : expr_RL (SEMI)+
@@ -223,6 +222,41 @@ pat_fields
   | UNDERSCORE
   ;
 
+
+traits : trait | traits PLUS trait ;
+trait : path (LT (generics)? GT)? ;
+tys : ty | tys COMMA ty ;
+ty : LPAREN RPAREN
+  | LPAREN ty RPAREN
+  | LPAREN ty COMMA RPAREN
+  | LPAREN tys RPAREN
+  | AT box_or_uniq_pointee
+  | TILDE box_or_uniq_pointee
+  | STAR mutability ty
+  | path (LT (generics)? GT)?
+  | LBRACKET (obsoleteconst)? ty COMMA DOTDOT expr RBRACKET
+  | LBRACKET (obsoleteconst)? ty RBRACKET
+  | AND borrowed_pointee
+  | EXTERN (LIT_STR)? (UNSAFE)? ty_fn
+  | ty_closure
+  | path (LT (generics)? GT)?
+  ;
+box_or_uniq_pointee
+  : (lifetime)? ty_closure
+  | mutability ty ;
+borrowed_pointee
+  : (lifetime)? ty_closure
+  | (lifetime)? mutability ty ;
+ty_closure
+  : (UNSAFE)? (ONCE)? ty_fn
+  ;
+ty_fn : FN (LT (lifetimes)? GT)? LPAREN (maybenamed_args)? RPAREN ret_ty ;
+
+// obsolete:
+obsoleteconst : CONST ;
+
+
+
 // because of the bifurcated treatment of statements and semicolon requirements,
 // there's no "stmt" production; instead, upstream uses are treated independently.
 
@@ -243,10 +277,9 @@ local_var_decl : pat (COLON ty)? (EQ expr)? ;
 
 // from a parser standpoint, it would be simpler just
 // to allow lifetimes and type params to be intermixed.
-generic_decls : LT GT
-  | LT generic_decls_list GT ;
-generic_decls_list : lifetime
-  | lifetime COMMA generic_decls_list
+generic_decls
+  : lifetime
+  | lifetime COMMA generic_decls
   | ty_params ;
 ty_params : ty_param | ty_param COMMA ty_params ;
 ty_param : ident | ident COLON | ident COLON boundseq ;
@@ -256,11 +289,8 @@ bound : STATIC_LIFETIME | ty | obsoletekind ;
 obsoletekind : COPYTOK | CONST ;
 
 
-colon_generics : MOD_SEP generics ;
-generics : LT GT
-  | LT generics_list GT ;
-generics_list : lifetime
-  | lifetime COMMA generics_list
+generics : lifetime
+  | lifetime COMMA generics
   | tys ;
 
 lifetimes_in_braces : LT (lifetimes)? GT ;
@@ -273,6 +303,7 @@ non_global_path : ident (MOD_SEP ident)* ;
 
 // EXPRS
 
+exprs : expr COMMA exprs | expr ;
 expr : expr_1 EQ expr
   | expr_1 BINOPEQ expr
   | expr_1 DARROW expr
@@ -320,12 +351,11 @@ expr_prefix : NOT expr_prefix
   | expr_dot_or_call
   ;
 expr_dot_or_call
-  : expr_dot_or_call DOT ident (MOD_SEP generics)? (LPAREN (exprs)? RPAREN)?
+  : expr_dot_or_call DOT ident (MOD_SEP LT (generics)? GT)? (LPAREN (exprs)? RPAREN)?
   | expr_dot_or_call LPAREN (exprs)? RPAREN
   | expr_dot_or_call LBRACKET expr RBRACKET
   | expr_bottom
   ;
-exprs : expr COMMA exprs | expr ;
 expr_bottom
 // this covers (), (e), and tuples, including our goofy one-tuple:
   : LPAREN (exprs (COMMA)?)? RPAREN
@@ -341,7 +371,7 @@ expr_bottom
     // this will overlap with the whole-stmt macro-invocation rule...
     // I don't think I can bear to
   | macro
-  | path_with_colon_tps LBRACE field_init field_inits (COMMA DOTDOT expr | (COMMA)?) RBRACE
+  | path_with_colon_tps LBRACE field_inits (COMMA DOTDOT expr | (COMMA)?) RBRACE
   | path_with_colon_tps
   | lit
   ;
@@ -350,9 +380,9 @@ expr_bottom
 // fooRL is just like foo but doesn't allow an expr_statement
 // as its beginning.
 
-// in the NO_LHS_STMT mode, we're concerned about
+// in this mode, we're concerned about
 // statements like if true {3} else {4} |a|a, which we
-// want to parse as a statement followed by an expression,
+// want to parse as a statement followed by a closure expression,
 // rather than as (if... | a) | a.
 
 expr_RL : expr_1RL EQ expr
@@ -403,7 +433,7 @@ expr_prefixRL : NOT expr_prefix
   ;
 expr_dot_or_callRL
     // strange exception here: we allow .f() after stmt_exprs
-  : expr_dot_or_call DOT ident (MOD_SEP generics)? (LPAREN (exprs)? RPAREN)?
+  : expr_dot_or_call DOT ident (MOD_SEP LT (generics)? GT)? (LPAREN (exprs)? RPAREN)?
   | expr_dot_or_callRL LPAREN (exprs)? RPAREN
   | expr_dot_or_callRL LBRACKET expr RBRACKET
   | expr_bottomRL
@@ -421,7 +451,7 @@ expr_bottomRL
   | COPYTOK expr
     // this is an ambiguity, right?
   | macro
-  | path_with_colon_tps LBRACE field_init field_inits (COMMA DOTDOT expr | (COMMA)?) RBRACE
+  | path_with_colon_tps LBRACE field_inits (COMMA DOTDOT expr | (COMMA)?) RBRACE
   | path_with_colon_tps
   | lit
   ;
@@ -468,6 +498,8 @@ expr_5RBB : expr_7;
 
 // things that can be either statements (without semicolons) or expressions
 // these can't appear in certain positions, e.g. 'if true {3} else {4} + 19'
+// blocks need special treatment because they don't require commas when used
+// as the RHS of match clauses.
 expr_stmt
   : expr_stmt_block
   | expr_stmt_not_block
@@ -482,7 +514,10 @@ expr_stmt_not_block
   | expr_do
   ;
 
-field_inits : /*nothing*/ | COMMA field_init field_inits ;
+field_inits
+  : field_init
+  | field_inits COMMA field_init
+  ;
 field_init : mutability ident COLON expr ;
 expr_vector : LBRACKET RBRACKET
   | LBRACKET expr (COMMA DOTDOT expr)? RBRACKET
@@ -497,8 +532,10 @@ expr_loop
   ;
 expr_match : MATCH expr LBRACE (match_clauses)? RBRACE ;
 match_clauses : match_final_clause | match_clause match_clauses ;
-match_final_clause : pats_or (IF expr)? FAT_ARROW (expr_RL | expr_stmt_not_block | expr_stmt_block ) (COMMA)? ;
-match_clause : pats_or (IF expr)? FAT_ARROW (expr_RL COMMA | expr_stmt_not_block COMMA | expr_stmt_block (COMMA)? ) ;
+match_final_clause
+  : pats_or (IF expr)? FAT_ARROW (expr_RL | expr_stmt_not_block | expr_stmt_block ) (COMMA)? ;
+match_clause
+  : pats_or (IF expr)? FAT_ARROW (expr_RL COMMA | expr_stmt_not_block COMMA | expr_stmt_block (COMMA)? ) ;
 
 expr_lambda : OR (maybetyped_args)? OR expr ;
 
@@ -507,14 +544,6 @@ expr_lambda : OR (maybetyped_args)? OR expr ;
 ident : IDENT | SELF | STATIC | UNDERSCORE ;
 lifetime : STATIC_LIFETIME | LIFETIME ;
 
-field_exprs : field_expr field_trailer
-  | field_expr COMMA field_exprs ;
-field_trailer : DOTDOT expr
-  | COMMA
-  | /* nothing */
-  ;
-field_expr : mutability ident COLON expr ;
-
 macro
   : macro_parens
   | macro_braces
@@ -522,8 +551,8 @@ macro
 macro_parens : ident NOT parendelim ;
 macro_braces : ident NOT bracedelim ;
 
-path_with_tps : path (generics)? ;
-path_with_colon_tps : path (colon_generics)? ;
+path_with_tps : path (LT (generics)? GT)? ;
+path_with_colon_tps : path (MOD_SEP LT (generics)? GT )? ;
 
 lit
   : TRUE
@@ -534,39 +563,10 @@ lit
   | LPAREN RPAREN
   ;
 
-// trait : ty that gets parsed as a ty_path
-traits : trait | traits PLUS trait ;
-trait : path (generics)? ;
-
-ty : LPAREN RPAREN
-  | LPAREN ty RPAREN
-  | LPAREN ty COMMA RPAREN
-  | LPAREN tys RPAREN
-  | AT box_or_uniq_pointee
-  | TILDE box_or_uniq_pointee
-  | STAR mutability ty
-  | path (generics)?
-  | LBRACKET obsoleteconst ty COMMA DOTDOT expr RBRACKET
-  | LBRACKET obsoleteconst ty RBRACKET
-  | AND borrowed_pointee
-    // something going in here re: ABI
-  | EXTERN (LIT_STR)? (UNSAFE)? FN (lifetimes_in_braces)? LPAREN (maybenamed_args)? RPAREN ret_ty
-  | ty_closure
-  | path (generics)?
-  ;
-tys : ty | tys COMMA ty ;
-box_or_uniq_pointee : (lifetime)? ty_closure
-  | mutability ty ;
-borrowed_pointee : (lifetime)? ty_closure
-  | (lifetime)? mutability ty ;
-ty_closure : (UNSAFE)? (ONCE)? FN (lifetimes_in_braces)? LPAREN (maybenamed_args)? RPAREN ret_ty ;
-
-// obsolete:
-obsoleteconst : (CONST)? ;
-
 // TOKEN TREES:
 tt : nondelim | delimited ;
-delimited : parendelim
+delimited
+  : parendelim
   | bracketdelim
   | bracedelim;
 parendelim : LPAREN tt* RPAREN ;
@@ -604,7 +604,7 @@ nondelim
   | STRUCT
   | SELF
     // I don't think super needs to be a keyword.
-//  | SUPER
+    //  | SUPER
   | TRUE
   | TRAIT
   | TYPE
@@ -612,7 +612,7 @@ nondelim
   | USE
   | WHILE
   // Expression-operator symbols.
-  // adding AND and PLUS and MINUS to make the grammar tractable:
+  // adding AND and PLUS and MINUS (etc) to make the grammar tractable:
   |  AND
   |  PLUS
   |  MINUS
@@ -647,6 +647,7 @@ nondelim
   |  DOLLAR
   // Literals
   |  LIT_INT
+  // It's not necessary to distinguish these for parsing:
   //|  LIT_UINT
   //|  LIT_INT_UNSUFFIXED
   |  LIT_FLOAT
@@ -657,13 +658,10 @@ nondelim
   |  UNDERSCORE
   |  STATIC_LIFETIME
   |  LIFETIME
-  // For interpolation
+  // Interpolation isn't present until after expansion
   // |  INTERPOLATED
   |  OUTER_DOC_COMMENT
   |  INNER_DOC_COMMENT;
-
-outer_doc_comment : OUTER_DOC_COMMENT ;
-inner_doc_comment : INNER_DOC_COMMENT ;
 
 // putting keywords in to simplify things:
 AS : 'as' ;
@@ -743,38 +741,35 @@ RBRACE    : '}' ;
 POUND     : '#' ;
 DOLLAR    : '$' ;
 
-// includes both INT and UINT INT_UNSUFFIXED
-LIT_INT   : LIT_CHAR
-          | '0x' HEXDIGIT+ INTLIT_TY?
-          | '0b' BINDIGIT+ INTLIT_TY?
-          | [0-9] DECDIGIT* INTLIT_TY?
-          ;
+LIT_INT
+  : LIT_CHAR
+  | '0x' HEXDIGIT+ INTLIT_TY?
+  | '0b' BINDIGIT+ INTLIT_TY?
+  | [0-9] DECDIGIT* INTLIT_TY?
+  ;
 
-// we definitely need lookahead here...
-LIT_FLOAT : [0-9] DECDIGIT* '.' {!followed_by_ident_or_dot()}?
-          // nb: digit following '.' can't be underscore.
-          | [0-9] DECDIGIT* '.' [0-9] DECDIGIT* LITFLOAT_EXP? LITFLOAT_TY?
-          | [0-9] DECDIGIT* LITFLOAT_EXP LITFLOAT_TY?
-          | [0-9] DECDIGIT* LITFLOAT_TY
-          ;
+LIT_FLOAT
+  : [0-9] DECDIGIT* '.' {!followed_by_ident_or_dot()}?
+    // nb: digit following '.' can't be underscore.
+  | [0-9] DECDIGIT* '.' [0-9] DECDIGIT* LITFLOAT_EXP? LITFLOAT_TY?
+  | [0-9] DECDIGIT* LITFLOAT_EXP LITFLOAT_TY?
+  | [0-9] DECDIGIT* LITFLOAT_TY
+  ;
 
 LIT_STR : '\"' STRCHAR* '\"' ;
 IDENT : IDSTART IDCONT* ;
 UNDERSCORE : '_' ;
 
 
-// there's potential ambiguity with char constants,
-// but I think that the greedy read will do the "right
-// thing"
 STATIC_LIFETIME : '\'static' ;
-LIFETIME : '\'' IDENT
-    // should this be a lifetime? :
+LIFETIME
+  : '\'' IDENT
   | '\'' SELF
   ;
 // the not-only-slashes restrictions is a real PITA:
 // must have at least one non-slash char
 OUTER_DOC_COMMENT : '///' '/' * NON_SLASH_OR_WS ~[\n]*
-  | '///' '/' * [ \r\n\t] ~[ \r\n\t] ~[\n]* 
+  | '///' '/' * [ \r\n\t] ~[ \r\n\t] ~[\n]*
     // again, we have to do a funny dance to fence out
     // only-stars.
     // CAN'T ABSTRACT OVER BLOCK_CHARS; learned this
