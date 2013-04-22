@@ -85,12 +85,11 @@ foreign_item
 type_decl : TYPE ident (LT (generic_decls)? GT)? EQ ty SEMI ;
 
 struct_decl
-  : STRUCT ident (LT (generic_decls)? GT)? LBRACE (struct_fields)? RBRACE
+  : STRUCT ident (LT (generic_decls)? GT)? LBRACE (struct_fields (COMMA)?)? RBRACE
   | STRUCT ident (LT (generic_decls)? GT)? LPAREN (tys)? RPAREN SEMI
   | STRUCT ident (LT (generic_decls)? GT)? SEMI
   ;
-// trailing comma allowed:
-struct_fields : struct_field COMMA struct_fields | struct_field (COMMA)? ;
+struct_fields : struct_field COMMA struct_fields | struct_field ;
 struct_field
   : attrs_and_vis mutability ident COLON ty
   | outer_attrs DROP block
@@ -98,11 +97,11 @@ struct_field
 
 enum_decl
   : ENUM ident (LT (generic_decls)? GT)? EQ ty SEMI
-  | ENUM ident (LT (generic_decls)? GT)? LBRACE (enum_variant_decls)? RBRACE
+  | ENUM ident (LT (generic_decls)? GT)? LBRACE (enum_variant_decls (COMMA)?)? RBRACE
   ;
-enum_variant_decls : enum_variant_decl COMMA enum_variant_decls | enum_variant_decl (COMMA)? ;
+enum_variant_decls : enum_variant_decl COMMA enum_variant_decls | enum_variant_decl ;
 enum_variant_decl
-  : attrs_and_vis ident LBRACE (struct_fields)? RBRACE
+  : attrs_and_vis ident LBRACE (struct_fields (COMMA)?)? RBRACE
   | attrs_and_vis ident LPAREN (tys)? RPAREN
   | attrs_and_vis ident EQ expr
   | attrs_and_vis ident
@@ -155,7 +154,7 @@ meta_items : meta_item
 
 
 
-args : arg | args COMMA arg ;
+args : arg | arg COMMA args ;
 arg : (arg_mode)? mutability pat COLON ty ;
 arg_mode : AND AND | PLUS | obsoletemode ;
 // obsolete ++ mode used in librustc/middle/region.rs
@@ -176,9 +175,9 @@ self_ty
   | SELF
   ;
 
-maybetyped_args : maybetyped_arg | maybetyped_args COMMA maybetyped_arg ;
+maybetyped_args : maybetyped_arg | maybetyped_arg COMMA maybetyped_args ;
 maybetyped_arg : (arg_mode)? mutability pat (COLON ty)? ;
-maybenamed_args : maybenamed_arg | maybenamed_args COMMA maybenamed_arg ;
+maybenamed_args : maybenamed_arg | maybenamed_arg COMMA maybenamed_args ;
 maybenamed_arg : arg | ty ;
 
 
@@ -211,7 +210,7 @@ const_item : STATIC ident COLON ty EQ expr SEMI ;
 view_paths : view_path | view_path COMMA view_paths ;
 view_path : (MOD)? ident EQ non_global_path
   | (MOD)? non_global_path MOD_SEP LBRACE RBRACE
-  | (MOD)? non_global_path MOD_SEP LBRACE ident_seq RBRACE
+  | (MOD)? non_global_path MOD_SEP LBRACE idents (COMMA)? RBRACE
   | (MOD)? non_global_path MOD_SEP STAR
   | (MOD)? non_global_path
   ;
@@ -223,9 +222,9 @@ pat_fields
   ;
 
 
-traits : trait | traits PLUS trait ;
+traits : trait | trait PLUS traits ;
 trait : path (LT (generics)? GT)? ;
-tys : ty | tys COMMA ty ;
+tys : ty | ty COMMA tys ;
 ty : LPAREN RPAREN
   | LPAREN ty RPAREN
   | LPAREN ty COMMA RPAREN
@@ -294,16 +293,16 @@ generics : lifetime
   | tys ;
 
 lifetimes_in_braces : LT (lifetimes)? GT ;
-lifetimes : lifetime | lifetimes COMMA lifetime ;
+lifetimes : lifetime | lifetime COMMA lifetimes ;
 
-ident_seq : ident (COMMA)? | ident COMMA ident_seq ;
+idents : ident | ident COMMA idents ;
 
 path : MOD_SEP? non_global_path ;
 non_global_path : ident (MOD_SEP ident)* ;
 
 // EXPRS
 
-exprs : expr COMMA exprs | expr ;
+exprs : expr | expr COMMA exprs ;
 expr : expr_1 EQ expr
   | expr_1 BINOPEQ expr
   | expr_1 DARROW expr
@@ -350,6 +349,7 @@ expr_prefix : NOT expr_prefix
   | TILDE expr_prefix
   | expr_dot_or_call
   ;
+// refactoning to eliminate left-recursion would make this less readable...
 expr_dot_or_call
   : expr_dot_or_call DOT ident (MOD_SEP LT (generics)? GT)? (LPAREN (exprs)? RPAREN)?
   | expr_dot_or_call LPAREN (exprs)? RPAREN
@@ -514,10 +514,7 @@ expr_stmt_not_block
   | expr_do
   ;
 
-field_inits
-  : field_init
-  | field_inits COMMA field_init
-  ;
+field_inits : field_init | field_init COMMA field_inits ;
 field_init : mutability ident COLON expr ;
 expr_vector : LBRACKET RBRACKET
   | LBRACKET expr (COMMA DOTDOT expr)? RBRACKET
