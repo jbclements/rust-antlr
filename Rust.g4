@@ -19,8 +19,11 @@ grammar Rust;
 
 @lexer::members {
       static int dotChar = 46;
-      public boolean followed_by_ident_or_dot() {
 
+      // is this character followed by an identifier or
+      // a dot? this is used in parsing numbers, to distinguish
+      // floating-point numbers from ranges and method calls.
+      public boolean followed_by_ident_or_dot() {
         CharStream cs = getInputStream();
         int nextChar = cs.LA(1);
         // KNOWN POTENTIAL ISSUE : this fn needs to be
@@ -29,6 +32,8 @@ grammar Rust;
                 || nextChar == dotChar);
       }
 
+      // are we at the beginning of the file? This is needed in
+      // order to parse shebangs.
       public boolean at_beginning_of_file() {
         return (getInputStream().index() == 0);
       }
@@ -37,75 +42,90 @@ grammar Rust;
 
 import "xidstart" , "xidcont";
 
-// parsing a whole file as a 'tts' should work on current sources.
+// you can either treat a program as a sequence of token-trees--this is
+// the "s-expression" approach to parsing--or as a prog.
+
+// a sequence of token trees
 tts : tt* ;
 
-// parsing a whole file as a 'prog' will be spotty.
+// module contents
 prog : module_contents ;
 module_contents : inner_attr* extern_mod_view_item* view_item* mod_item*;
 
 // MODULE ITEMS :
-extern_mod_view_item : attrs_vis EXTERN MOD ident (LPAREN (meta_item_seq)? RPAREN)? SEMI ;
-view_item : attrs_vis use ;
-mod_item : attrs_vis items_with_visibility
+extern_mod_view_item : attrs_and_vis EXTERN MOD ident (lib_selectors)? SEMI ;
+view_item : attrs_and_vis USE view_paths SEMI ;
+mod_item
+  : attrs_and_vis mod_decl
+  | attrs_and_vis foreign_mod
+  | attrs_and_vis type_decl
+  | attrs_and_vis struct_decl
+  | attrs_and_vis enum_decl
+  | attrs_and_vis trait_decl
+  | attrs_and_vis const_item
+  | attrs_and_vis impl
   | outer_attrs impl_trait_for_type
-  | macro_item ;
-items_with_visibility : const_item
-  | enum_decl
-  | (UNSAFE)? item_fn_decl
-  | impl
-  | mod_decl
-  | EXTERN (LIT_STR)? item_fn_decl
-  | foreign_mod
-  | struct_decl
-  | type_decl
-  | trait_decl
+  | attrs_and_vis (UNSAFE)? item_fn_decl
+  | attrs_and_vis EXTERN (LIT_STR)? item_fn_decl
+  | macro_item
   ;
-mod_decl : MOD ident SEMI
-  | MOD ident LBRACE module_contents RBRACE ;
-struct_decl : STRUCT ident (generic_decls)? LBRACE (struct_fields)? RBRACE 
-  | STRUCT ident (generic_decls)? LPAREN (tys?) RPAREN SEMI
-  | STRUCT ident (generic_decls)? SEMI ;
-impl : IMPL (generic_decls)? ty impl_body ;
-impl_trait_for_type : IMPL (generic_decls)? trait FOR ty impl_body ;
-type_decl : TYPE ident (generic_decls)? EQ ty SEMI ;
-enum_decl : ENUM ident (generic_decls)? EQ ty SEMI
-  | ENUM ident (generic_decls)? LBRACE (enum_variant_decls)? RBRACE ;
-enum_variant_decls : enum_variant_decl COMMA enum_variant_decls | enum_variant_decl (COMMA)? ;
-enum_variant_decl : attrs_vis ident LBRACE (struct_fields)? RBRACE
-  | attrs_vis ident LPAREN (tys)? RPAREN
-  | attrs_vis ident EQ expr
-  | attrs_vis ident
+
+mod_decl
+  : MOD ident SEMI
+  | MOD ident LBRACE module_contents RBRACE
   ;
-// trailing comma allowed:
-struct_fields : struct_field COMMA struct_fields | struct_field (COMMA)? ;
-struct_field
-  : attrs_vis mutability ident COLON ty
-  | outer_attrs DROP block
-  ;
-trait_decl: TRAIT ident (generic_decls)? (COLON trait_list)? LBRACE trait_method* RBRACE ;
-trait_method
-  : attrs_vis (UNSAFE)? FN ident (generic_decls)? tylike_args_with_self ret_ty SEMI
-  | attrs_vis (UNSAFE)? FN ident (generic_decls)? tylike_args_with_self ret_ty fun_body;
-tylike_args_with_self : LPAREN (self_ty_and_tylike_args)? RPAREN;
-self_ty
-  : AND (lifetime)? mutability SELF
-  | AT mutability SELF
-  | TILDE mutability SELF
-  | SELF ;
-self_ty_and_tylike_args
-  : self_ty (COMMA tylike_args)?
-  | tylike_args
-  ;
-macro_item: ident NOT (ident)? parendelim
-  | ident NOT (ident)? bracedelim ;
-use : USE view_paths SEMI ;
-item_fn_decl : FN ident (generic_decls)? LPAREN (args)? RPAREN ret_ty fun_body ;
-foreign_mod :  EXTERN (LIT_STR)? MOD ident LBRACE inner_attr* foreign_item* RBRACE
+
+foreign_mod
+  : EXTERN (LIT_STR)? MOD ident LBRACE inner_attr* foreign_item* RBRACE
   | EXTERN (LIT_STR)? LBRACE inner_attr* foreign_item* RBRACE ;
 foreign_item
   : outer_attrs STATIC ident COLON ty SEMI
   | outer_attrs visibility (UNSAFE)? FN ident (generic_decls)? LPAREN (args)? RPAREN ret_ty SEMI
+  ;
+
+type_decl : TYPE ident (generic_decls)? EQ ty SEMI ;
+
+struct_decl
+  : STRUCT ident (generic_decls)? LBRACE (struct_fields)? RBRACE
+  | STRUCT ident (generic_decls)? LPAREN (tys)? RPAREN SEMI
+  | STRUCT ident (generic_decls)? SEMI
+  ;
+// trailing comma allowed:
+struct_fields : struct_field COMMA struct_fields | struct_field (COMMA)? ;
+struct_field
+  : attrs_and_vis mutability ident COLON ty
+  | outer_attrs DROP block
+  ;
+
+enum_decl
+  : ENUM ident (generic_decls)? EQ ty SEMI
+  | ENUM ident (generic_decls)? LBRACE (enum_variant_decls)? RBRACE
+  ;
+enum_variant_decls : enum_variant_decl COMMA enum_variant_decls | enum_variant_decl (COMMA)? ;
+enum_variant_decl
+  : attrs_and_vis ident LBRACE (struct_fields)? RBRACE
+  | attrs_and_vis ident LPAREN (tys)? RPAREN
+  | attrs_and_vis ident EQ expr
+  | attrs_and_vis ident
+  ;
+
+trait_decl: TRAIT ident (generic_decls)? (COLON trait_list)? LBRACE trait_method* RBRACE ;
+trait_method
+  : attrs_and_vis (UNSAFE)? FN ident (generic_decls)? LPAREN (self_ty_and_maybenamed_args)? RPAREN ret_ty SEMI
+  | attrs_and_vis (UNSAFE)? FN ident (generic_decls)? LPAREN (self_ty_and_maybenamed_args)? RPAREN ret_ty fun_body
+  ;
+
+impl : IMPL (generic_decls)? ty impl_body ;
+impl_trait_for_type : IMPL (generic_decls)? trait FOR ty impl_body ;
+impl_body : SEMI
+  | LBRACE impl_method* RBRACE ;
+impl_method : attrs_and_vis (UNSAFE)? FN ident (generic_decls)? args_with_self ret_ty fun_body  ;
+
+item_fn_decl : FN ident (generic_decls)? LPAREN (args)? RPAREN ret_ty fun_body ;
+
+macro_item
+  : ident NOT (ident)? parendelim
+  | ident NOT (ident)? bracedelim
   ;
 
 
@@ -115,10 +135,6 @@ mutability : MUT | CONST | /*nothing*/ ;
 
 trait_list : trait | trait PLUS trait_list ;
 
-
-impl_body : SEMI
-  | LBRACE impl_method* RBRACE ;
-impl_method : attrs_vis (UNSAFE)? FN ident (generic_decls)? args_with_self ret_ty fun_body  ;
 args_with_self : LPAREN (self_ty_and_args)? RPAREN ;
 self_ty_and_args
   : self_ty (COMMA args)?
@@ -132,21 +148,32 @@ arg_mode : AND AND | PLUS | obsoletemode ;
 // obsolete ++ mode used in librustc/middle/region.rs
 obsoletemode : PLUS PLUS ;
 
+self_ty_and_maybenamed_args
+  : self_ty (COMMA maybenamed_args)?
+  | maybenamed_args
+  ;
+self_ty
+  : AND (lifetime)? mutability SELF
+  | AT mutability SELF
+  | TILDE mutability SELF
+  | SELF
+  ;
+
 fn_block_args : fn_block_arg | fn_block_arg COMMA fn_block_args ;
 fn_block_arg : (arg_mode)? mutability pat (COLON ty)? ;
 
-attrs_vis : outer_attrs visibility ;
+attrs_and_vis : outer_attrs visibility ;
 
 
 ret_ty : RARROW NOT
   | RARROW ty
   | /* nothing */
   ;
-tylike_args : tylike_arg | tylike_args COMMA tylike_arg ;
-tylike_arg : arg | ty ;
+maybenamed_args : maybenamed_arg | maybenamed_args COMMA maybenamed_arg ;
+maybenamed_arg : arg | ty ;
 
-fun_body : LBRACE inner_attr* view_item* block_element* block_last_element? RBRACE ;
-block : LBRACE view_item* block_element* block_last_element? RBRACE ;
+fun_body : LBRACE inner_attr* view_item* block_element* (block_last_element)? RBRACE ;
+block : LBRACE view_item* block_element* (block_last_element)? RBRACE ;
 block_element : expr_RL (SEMI)+
   | stmt_not_just_expr (SEMI)*
   ;
@@ -155,7 +182,11 @@ block_element : expr_RL (SEMI)+
 // if this is true of all callers, we could glue it back together again....
 stmt : expr_RL | stmt_not_just_expr ;
 // a statement that is not parsed by the expr_RL rule
-stmt_not_just_expr : let_stmt
+stmt_not_just_expr
+  : let_stmt
+    // this one requires parens. I think this may be accidental,
+    // because mod_item includes both kinds of macro invocation... and
+    // this one can fall through to that one.
   | macro_parens
   | mod_item
   | expr_stmt
@@ -167,7 +198,6 @@ let_stmt : LET mutability local_var_decl (COMMA local_var_decl)* SEMI ;
 local_var_decl : pat (COLON ty)? (EQ expr)? ;
 
 // not treating '_' specially... I don't think I have to.
-// "refutable" appears not to affect the parsing at this level.
 pat : AT pat
   | TILDE pat
   | AND pat
@@ -194,30 +224,30 @@ vec_pats_no_slice : pat | pat COMMA vec_pats_no_slice ;
 const_item : STATIC ident COLON ty EQ expr SEMI ;
 
 view_paths : view_path | view_path COMMA view_paths ;
-view_path : MOD? ident EQ non_global_path
-  | MOD? non_global_path MOD_SEP LBRACE RBRACE
-  | MOD? non_global_path MOD_SEP LBRACE ident_seq RBRACE
-  | MOD? non_global_path MOD_SEP STAR
-  | MOD? non_global_path
+view_path : (MOD)? ident EQ non_global_path
+  | (MOD)? non_global_path MOD_SEP LBRACE RBRACE
+  | (MOD)? non_global_path MOD_SEP LBRACE ident_seq RBRACE
+  | (MOD)? non_global_path MOD_SEP STAR
+  | (MOD)? non_global_path
   ;
 
-// UNIMPLEMENTED:
 pat_fields
   : IDENT (COLON pat)?
   | IDENT (COLON pat)? COMMA pat_fields
   | UNDERSCORE
   ;
 
+lib_selectors : LPAREN (meta_items)? RPAREN
 outer_attrs : /* nothing */ | outer_attr outer_attrs ;
 outer_attr : POUND LBRACKET meta_item RBRACKET
-  | OUTER_DOC_COMMENT ; 
+  | OUTER_DOC_COMMENT ;
 inner_attr : POUND LBRACKET meta_item RBRACKET SEMI
   | INNER_DOC_COMMENT ;
 meta_item : ident
   | ident EQ lit
-  | ident LPAREN (meta_item_seq)? RPAREN ;
-meta_item_seq : meta_item
-  | meta_item COMMA meta_item_seq ;
+  | ident LPAREN (meta_items)? RPAREN ;
+meta_items : meta_item
+  | meta_item COMMA meta_items ;
 
 
 
@@ -489,30 +519,27 @@ field_trailer : DOTDOT expr
   | COMMA
   | /* nothing */
   ;
-// unimplemented
 field_expr : mutability ident COLON expr ;
 
 macro
   : macro_parens
   | macro_braces ;
-// this one requires parens. I think this may be accidental,
-// because mod_item includes both kinds of macro invocation... and
-// this one can fall through to that one.
 macro_parens : ident NOT parendelim ;
 macro_braces : ident NOT bracedelim ;
 
 path_with_tps : path (generics)? ;
 path_with_colon_tps : path (colon_generics)? ;
 
-lit : TRUE
+lit
+  : TRUE
   | FALSE
   | LIT_INT
   | LIT_FLOAT
   | LIT_STR
-  | LPAREN RPAREN ;
+  | LPAREN RPAREN
+  ;
 
 // trait : ty that gets parsed as a ty_path
-// BUG IN PARSER: (A) parses as a trait.
 trait : path (generics)? ;
 ty : LPAREN RPAREN
   | LPAREN ty RPAREN
@@ -526,7 +553,7 @@ ty : LPAREN RPAREN
   | LBRACKET obsoleteconst ty RBRACKET
   | AND borrowed_pointee
     // something going in here re: ABI
-  | EXTERN (LIT_STR)? (UNSAFE)? FN (lifetimes_in_braces)? LPAREN (tylike_args)? RPAREN ret_ty
+  | EXTERN (LIT_STR)? (UNSAFE)? FN (lifetimes_in_braces)? LPAREN (maybenamed_args)? RPAREN ret_ty
   | ty_closure
   | path (generics)?
   ;
@@ -535,7 +562,7 @@ box_or_uniq_pointee : (lifetime)? ty_closure
   | mutability ty ;
 borrowed_pointee : (lifetime)? ty_closure
   | (lifetime)? mutability ty ;
-ty_closure : (UNSAFE)? (ONCE)? FN (lifetimes_in_braces)? LPAREN (tylike_args)? RPAREN ret_ty ;
+ty_closure : (UNSAFE)? (ONCE)? FN (lifetimes_in_braces)? LPAREN (maybenamed_args)? RPAREN ret_ty ;
 
 // obsolete:
 obsoleteconst : (CONST)? ;
