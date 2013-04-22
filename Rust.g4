@@ -109,7 +109,7 @@ enum_variant_decl
   | attrs_and_vis ident
   ;
 
-trait_decl: TRAIT ident (generic_decls)? (COLON trait_list)? LBRACE trait_method* RBRACE ;
+trait_decl: TRAIT ident (generic_decls)? (COLON traits)? LBRACE trait_method* RBRACE ;
 trait_method
   : attrs_and_vis (UNSAFE)? FN ident (generic_decls)? LPAREN (self_ty_and_maybenamed_args)? RPAREN ret_ty SEMI
   | attrs_and_vis (UNSAFE)? FN ident (generic_decls)? LPAREN (self_ty_and_maybenamed_args)? RPAREN ret_ty fun_body
@@ -119,7 +119,7 @@ impl : IMPL (generic_decls)? ty impl_body ;
 impl_trait_for_type : IMPL (generic_decls)? trait FOR ty impl_body ;
 impl_body : SEMI
   | LBRACE impl_method* RBRACE ;
-impl_method : attrs_and_vis (UNSAFE)? FN ident (generic_decls)? args_with_self ret_ty fun_body  ;
+impl_method : attrs_and_vis (UNSAFE)? FN ident (generic_decls)? LPAREN (self_ty_and_args)? RPAREN ret_ty fun_body  ;
 
 item_fn_decl : FN ident (generic_decls)? LPAREN (args)? RPAREN ret_ty fun_body ;
 
@@ -133,14 +133,6 @@ visibility : PUB | PRIV | /*nothing*/ ;
 // overly loose on "const", but soon it will disappear completely?
 mutability : MUT | CONST | /*nothing*/ ;
 
-trait_list : trait | trait PLUS trait_list ;
-
-args_with_self : LPAREN (self_ty_and_args)? RPAREN ;
-self_ty_and_args
-  : self_ty (COMMA args)?
-  | args
-  ;
-
 
 args : arg | args COMMA arg ;
 arg : (arg_mode)? mutability pat COLON ty ;
@@ -148,10 +140,15 @@ arg_mode : AND AND | PLUS | obsoletemode ;
 // obsolete ++ mode used in librustc/middle/region.rs
 obsoletemode : PLUS PLUS ;
 
+self_ty_and_args
+  : self_ty (COMMA args)?
+  | args
+  ;
 self_ty_and_maybenamed_args
   : self_ty (COMMA maybenamed_args)?
   | maybenamed_args
   ;
+
 self_ty
   : AND (lifetime)? mutability SELF
   | AT mutability SELF
@@ -237,7 +234,7 @@ pat_fields
   | UNDERSCORE
   ;
 
-lib_selectors : LPAREN (meta_items)? RPAREN
+lib_selectors : LPAREN (meta_items)? RPAREN ;
 outer_attrs : /* nothing */ | outer_attr outer_attrs ;
 outer_attr : POUND LBRACKET meta_item RBRACKET
   | OUTER_DOC_COMMENT ;
@@ -523,7 +520,8 @@ field_expr : mutability ident COLON expr ;
 
 macro
   : macro_parens
-  | macro_braces ;
+  | macro_braces
+  ;
 macro_parens : ident NOT parendelim ;
 macro_braces : ident NOT bracedelim ;
 
@@ -540,7 +538,9 @@ lit
   ;
 
 // trait : ty that gets parsed as a ty_path
+traits : trait | traits PLUS trait ;
 trait : path (generics)? ;
+
 ty : LPAREN RPAREN
   | LPAREN ty RPAREN
   | LPAREN ty COMMA RPAREN
