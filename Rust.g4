@@ -122,16 +122,38 @@ impl_body : SEMI
 impl_method : attrs_and_vis (UNSAFE)? FN ident (generic_decls)? LPAREN (self_ty_and_args)? RPAREN ret_ty fun_body  ;
 
 item_fn_decl : FN ident (generic_decls)? LPAREN (args)? RPAREN ret_ty fun_body ;
+fun_body : LBRACE inner_attr* view_item* block_element* (block_last_element)? RBRACE ;
+block : LBRACE view_item* block_element* (block_last_element)? RBRACE ;
+block_element : expr_RL (SEMI)+
+  | stmt_not_just_expr (SEMI)*
+  ;
+block_last_element : expr_RL | macro_parens | expr_stmt ;
+ret_ty : RARROW NOT
+  | RARROW ty
+  | /* nothing */
+  ;
 
 macro_item
   : ident NOT (ident)? parendelim
   | ident NOT (ident)? bracedelim
   ;
 
-
+attrs_and_vis : outer_attrs visibility ;
 visibility : PUB | PRIV | /*nothing*/ ;
 // overly loose on "const", but soon it will disappear completely?
 mutability : MUT | CONST | /*nothing*/ ;
+lib_selectors : LPAREN (meta_items)? RPAREN ;
+outer_attrs : /* nothing */ | outer_attr outer_attrs ;
+outer_attr : POUND LBRACKET meta_item RBRACKET
+  | OUTER_DOC_COMMENT ;
+inner_attr : POUND LBRACKET meta_item RBRACKET SEMI
+  | INNER_DOC_COMMENT ;
+meta_item : ident
+  | ident EQ lit
+  | ident LPAREN (meta_items)? RPAREN ;
+meta_items : meta_item
+  | meta_item COMMA meta_items ;
+
 
 
 args : arg | args COMMA arg ;
@@ -148,7 +170,6 @@ self_ty_and_maybenamed_args
   : self_ty (COMMA maybenamed_args)?
   | maybenamed_args
   ;
-
 self_ty
   : AND (lifetime)? mutability SELF
   | AT mutability SELF
@@ -156,43 +177,11 @@ self_ty
   | SELF
   ;
 
-fn_block_args : fn_block_arg | fn_block_arg COMMA fn_block_args ;
-fn_block_arg : (arg_mode)? mutability pat (COLON ty)? ;
-
-attrs_and_vis : outer_attrs visibility ;
-
-
-ret_ty : RARROW NOT
-  | RARROW ty
-  | /* nothing */
-  ;
+maybetyped_args : maybetyped_arg | maybetyped_args COMMA maybetyped_arg ;
+maybetyped_arg : (arg_mode)? mutability pat (COLON ty)? ;
 maybenamed_args : maybenamed_arg | maybenamed_args COMMA maybenamed_arg ;
 maybenamed_arg : arg | ty ;
 
-fun_body : LBRACE inner_attr* view_item* block_element* (block_last_element)? RBRACE ;
-block : LBRACE view_item* block_element* (block_last_element)? RBRACE ;
-block_element : expr_RL (SEMI)+
-  | stmt_not_just_expr (SEMI)*
-  ;
-// the "stmt" production may simply consume an expr without its semicolon, so we need
-// to refactor to split these apart, because in a block body we need the semicolon.
-// if this is true of all callers, we could glue it back together again....
-stmt : expr_RL | stmt_not_just_expr ;
-// a statement that is not parsed by the expr_RL rule
-stmt_not_just_expr
-  : let_stmt
-    // this one requires parens. I think this may be accidental,
-    // because mod_item includes both kinds of macro invocation... and
-    // this one can fall through to that one.
-  | macro_parens
-  | mod_item
-  | expr_stmt
-  ;
-
-block_last_element : expr_RL | macro_parens | expr_stmt ;
-
-let_stmt : LET mutability local_var_decl (COMMA local_var_decl)* SEMI ;
-local_var_decl : pat (COLON ty)? (EQ expr)? ;
 
 // not treating '_' specially... I don't think I have to.
 pat : AT pat
@@ -202,7 +191,7 @@ pat : AT pat
   | LPAREN pats RPAREN
   | LBRACKET (vec_pats)? RBRACKET
     // definitely ambiguity here with ident patterns
-  | exprRB (DOTDOT exprRB)?
+  | expr_RB (DOTDOT expr_RB)?
   | REF mutability ident
   | COPYTOK ident
   | path AT pat
@@ -234,17 +223,21 @@ pat_fields
   | UNDERSCORE
   ;
 
-lib_selectors : LPAREN (meta_items)? RPAREN ;
-outer_attrs : /* nothing */ | outer_attr outer_attrs ;
-outer_attr : POUND LBRACKET meta_item RBRACKET
-  | OUTER_DOC_COMMENT ;
-inner_attr : POUND LBRACKET meta_item RBRACKET SEMI
-  | INNER_DOC_COMMENT ;
-meta_item : ident
-  | ident EQ lit
-  | ident LPAREN (meta_items)? RPAREN ;
-meta_items : meta_item
-  | meta_item COMMA meta_items ;
+// because of the bifurcated treatment of statements and semicolon requirements,
+// there's no "stmt" production; instead, upstream uses are treated independently.
+
+// a statement that is not parsed by the expr_RL rule
+stmt_not_just_expr
+  : let_stmt
+    // this one requires parens. I think this may be accidental,
+    // because mod_item includes both kinds of macro invocation... and
+    // this one can fall through to that one.
+  | macro_parens
+  | mod_item
+  | expr_stmt
+  ;
+let_stmt : LET mutability local_var_decl (COMMA local_var_decl)* SEMI ;
+local_var_decl : pat (COLON ty)? (EQ expr)? ;
 
 
 
@@ -433,25 +426,29 @@ expr_bottomRL
   | lit
   ;
 
-// exprRB
-// once again, with no | allowed.
+// expr_RB
+// these exprs are restricted; they may not contain the "or" operator.
+// this is used to artificially lower the precedence of | in patterns.
 
-exprRB : expr_2 EQ exprRB
-  | expr_2 BINOPEQ exprRB
-  | expr_2 DARROW exprRB
+expr_RB : expr_2 EQ expr_RB
+  | expr_2 BINOPEQ expr_RB
+  | expr_2 DARROW expr_RB
     // skipping over OR :
   | expr_2 
   ;
 
 // expr_RBB
-// once again, with no | or || allowed.
+// these exprs are restricted; they may not contain "or" or the
+// double "oror" operator. This is used to prevent parsing of
+// lambda terms following uses of "do" or "for" from being treated
+// as "or" operators instead.
 
 expr_RBB
     // skipping over OR:
   : expr_2RBB EQ expr_RBB
   | expr_2RBB BINOPEQ expr_RBB
   | expr_2RBB DARROW expr_RBB
-  | expr_2RBB 
+  | expr_2RBB
   ;
 expr_2RBB : expr_2RBB AND expr_3RBB
   | expr_3RBB ;
@@ -491,8 +488,8 @@ expr_vector : LBRACKET RBRACKET
   | LBRACKET expr (COMMA DOTDOT expr)? RBRACKET
   | LBRACKET expr COMMA exprs (COMMA)? RBRACKET ;
 expr_if : IF expr block (ELSE (block | expr_if))? ;
-expr_for : FOR expr_RBB (OR (fn_block_args)? OR)? block;
-expr_do : DO expr_RBB (OR (fn_block_args)? OR)? block;
+expr_for : FOR expr_RBB (OR (maybetyped_args)? OR)? block;
+expr_do : DO expr_RBB (OR (maybetyped_args)? OR)? block;
 expr_while : WHILE expr block ;
 expr_loop
   : LOOP (UNSAFE)? block
@@ -503,7 +500,7 @@ match_clauses : match_final_clause | match_clause match_clauses ;
 match_final_clause : pats_or (IF expr)? FAT_ARROW (expr_RL | expr_stmt_not_block | expr_stmt_block ) (COMMA)? ;
 match_clause : pats_or (IF expr)? FAT_ARROW (expr_RL COMMA | expr_stmt_not_block COMMA | expr_stmt_block (COMMA)? ) ;
 
-expr_lambda : OR (fn_block_args)? OR expr ;
+expr_lambda : OR (maybetyped_args)? OR expr ;
 
 // SELF and STATIC may be used as identifiers
 // not sure about underscore. should it even be a token?
