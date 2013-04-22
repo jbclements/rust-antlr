@@ -462,7 +462,7 @@ field_inits : /*nothing*/ | COMMA field_init field_inits ;
 field_init : mutability ident COLON expr ;
 expr_vector : LBRACKET RBRACKET
   | LBRACKET expr (COMMA DOTDOT expr)? RBRACKET
-  | LBRACKET expr COMMA exprs RBRACKET ;
+  | LBRACKET expr COMMA exprs (COMMA)? RBRACKET ;
 expr_if : IF expr block (ELSE (block | expr_if))? ;
 expr_for : FOR expr_RBB (OR (fn_block_args)? OR)? block;
 expr_do : DO expr_RBB (OR (fn_block_args)? OR)? block;
