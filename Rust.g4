@@ -306,10 +306,12 @@ expr_dot_or_call
   | expr_bottom
   ;
 exprs : expr COMMA exprs | expr ;
-expr_bottom : /*loose*/ parendelim
+expr_bottom
+// this covers (), (e), and tuples, including our goofy one-tuple:
+  : LPAREN (exprs (COMMA)?)? RPAREN
   | expr_lambda
   | expr_stmt
-  | /*loose*/ bracketdelim
+  | expr_vector
   | __LOG LPAREN expr COMMA expr RPAREN
   | LOOP (ident)?
   | RETURN expr
@@ -319,7 +321,7 @@ expr_bottom : /*loose*/ parendelim
     // this will overlap with the whole-stmt macro-invocation rule...
     // I don't think I can bear to
   | macro
-  | path_with_colon_tps /*loose*/ bracedelim 
+  | path_with_colon_tps LBRACE field_init field_inits (COMMA DOTDOT expr | (COMMA)?) RBRACE
   | path_with_colon_tps
   | lit
   ;
@@ -386,10 +388,11 @@ expr_dot_or_callRL
   | expr_dot_or_callRL LBRACKET expr RBRACKET
   | expr_bottomRL
   ;
-expr_bottomRL : /*loose*/ parendelim
+expr_bottomRL
+  : LPAREN (exprs (COMMA)?)? RPAREN
   | expr_lambda
   // no expr_stmt here
-  | /*loose*/ bracketdelim
+  | expr_vector
   | __LOG LPAREN expr COMMA expr RPAREN
   | LOOP (ident)?
   | RETURN expr
@@ -398,7 +401,7 @@ expr_bottomRL : /*loose*/ parendelim
   | COPYTOK expr
     // this is an ambiguity, right?
   | macro
-  | path_with_colon_tps /*loose */ bracedelim //LBRACE field_exprs RBRACE
+  | path_with_colon_tps LBRACE field_init field_inits (COMMA DOTDOT expr | (COMMA)?) RBRACE
   | path_with_colon_tps
   | lit
   ;
@@ -445,7 +448,7 @@ expr_stmt
   : expr_stmt_block
   | expr_stmt_not_block
   ;
-expr_stmt_block : (UNSAFE)? block ;
+expr_stmt_block : (UNSAFE)? block;
 expr_stmt_not_block
   : expr_if
   | expr_match
@@ -455,6 +458,11 @@ expr_stmt_not_block
   | expr_do
   ;
 
+field_inits : /*nothing*/ | COMMA field_init field_inits ;
+field_init : mutability ident COLON expr ;
+expr_vector : LBRACKET RBRACKET
+  | LBRACKET expr (COMMA DOTDOT expr)? RBRACKET
+  | LBRACKET expr COMMA exprs RBRACKET ;
 expr_if : IF expr block (ELSE (block | expr_if))? ;
 expr_for : FOR expr_RBB (OR (fn_block_args)? OR)? block;
 expr_do : DO expr_RBB (OR (fn_block_args)? OR)? block;
