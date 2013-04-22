@@ -1,6 +1,7 @@
 #lang racket
 
-(require racket/generator)
+(require racket/generator
+         rackunit)
 
 (define dev-null (open-output-file "/dev/null"
                                    #:exists 'update))
@@ -51,25 +52,13 @@
         #rx"src/test/run-pass/traits.rs"))
 
 ;; construct a stream of file names for testing.
-(define (make-file-name-stream directory skip-list)
-  (generator ()
-   (for ([f (in-directory directory)]
-             #:when (regexp-match #px".*\\.rs$" f)
+(define (make-file-name-list directory skip-list)
+  (for/list ([f (in-directory directory)]
+             #:when (regexp-match #px"\\.rs$" f)
              #:unless (ormap (lambda (pat) (regexp-match pat f))
                              skip-list)
              )
-     (yield (path->string f)))))
-
-(define a (make-file-name-stream "/Users/clements/rust/src"
-           parser-dont-try-list))
-
-
-(define (generator-take generator n)
-  (cond [(= n 0) empty]
-        [else
-         (define next (generator))
-         (cond [(void? next) empty]
-               [(cons next (generator-take generator (sub1 n)))])]))
+    (path->string f)))
 
 ;; GRR: the testrig doesn't clearly signal parse failures....
 ;; is this line indicative of an error?
@@ -91,23 +80,29 @@
 ;; that matches the 'start-with-pat' pattern
 (define (run-tests directory skip-list nonterm num-to-run-in-parallel 
                    [start-with-pat #f])
-  (define filename-generator (make-file-name-stream directory skip-list))
-  (when start-with-pat
-    (let loop ()
-      (define next (filename-generator))
-      (cond [(void? next) (error 'run-tests
-                                 "ran out of files while searching for pattern: ~e" start-with-pat)]
-            [(regexp-match start-with-pat next) (run-bunch nonterm (list next))]
-            [else (loop)])))
-  (let loop ()
-    (define next-bunch (generator-take filename-generator num-to-run-in-parallel))
-    (cond [(empty? next-bunch) #f]
+  (define filenames (make-file-name-list directory skip-list))
+  (when (empty? filenames)
+    (error 'run-tests
+           "empty list of files to test"))
+  (define filenames2 (cond [start-with-pat
+                            (dropf filenames (lambda (f)
+                                               (not (regexp-match start-with-pat f))))]
+                           [else filenames]))
+  (when (empty? filenames2)
+    (error 'run-tests
+           "ran out of files while searching for pattern: ~e" start-with-pat))
+  (let loop ([remaining filenames2])
+    (cond [(empty? remaining) #f]
           [else
+           (define-values (next-bunch new-remaining)
+             (split-at remaining (min num-to-run-in-parallel (length remaining))))
            (run-bunch nonterm next-bunch)
-           (loop)])))
+           (loop new-remaining)])))
 
 ;; test a bunch of files at once:
 (define (run-bunch nonterm bunch)
+  (define total-lines (apply + (map file-lines bunch)))
+  (define pre-time (current-inexact-milliseconds))
   (match-define (list _1 stdin _2 stderr control)
     (process/ports 
      dev-null
@@ -128,7 +123,26 @@
             (not (empty? errlines)))
     (error 
      (format "test of files ~s failed with result ~s and stderr\n~a"
-             bunch result errtext))))
+             bunch result errtext)))
+  (define post-time (current-inexact-milliseconds))
+  (define elapsed (/ (- post-time pre-time) 1000.0))
+  (define lines-per-second (/ total-lines elapsed))
+  (printf "parsing ran at ~a lines per second\n" (~r #:precision 2 lines-per-second)))
+
+;; this'll be slow, but probably not nearly as long as the parsing...
+(define (file-lines path)
+  (length (file->lines path)))
+
+
+;; return true if a ends with the string sought
+(define (string-ends-with a sought)
+  (and (<= (string-length sought) (string-length a))
+       (string=? (substring a (- (string-length a) (string-length sought)) (string-length a))
+                 sought)))
+
+(check-equal? (string-ends-with "abc" "bc") #t)
+(check-equal? (string-ends-with "abc" "abc") #t)
+(check-equal? (string-ends-with "abc" "zabc") #f)
 
 (run-tests "/Users/clements/tryrust/src/"
            parser-dont-try-list
