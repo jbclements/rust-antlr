@@ -12,8 +12,8 @@ delimiters match.
 The token-tree parsing appears to successfully parse all readily-available
 Rust code.
 
-The full parser still has some bugs. I think it's close, but it's not yet
-finished.
+The full parser also appears to parse all readily-available Rust code, although
+it's SO SLOW that I'm having trouble checking.
 
 
 To try it out:
