@@ -189,8 +189,8 @@ pat : AT pat
   | LBRACKET (vec_pats)? RBRACKET
     // definitely ambiguity here with ident patterns
   | expr_RB (DOTDOT expr_RB)?
-  | REF mutability ident
-  | COPYTOK ident
+  | REF mutability ident (AT pat)?
+  | COPYTOK ident (AT pat)?
   | path AT pat
   | path_with_colon_tps
   | path_with_colon_tps LBRACE pat_fields RBRACE
