@@ -6,8 +6,10 @@
 (define dev-null (open-output-file "/dev/null"
                                    #:exists 'update))
 
-(display "abc" dev-null)
-;; try parsing all files in ~/tryrust as tts
+;; if processing drops below this pace, indicate 
+;; failure and continue with the next batch
+(define MIN-LINES-PER-SECOND 50)
+
 
 ;; some files actually aren't lexically legal:
 (define lexer-dont-try-list
@@ -91,18 +93,24 @@
   (when (empty? filenames2)
     (error 'run-tests
            "ran out of files while searching for pattern: ~e" start-with-pat))
-  (let loop ([remaining filenames2])
-    (cond [(empty? remaining) #f]
+  (let loop ([remaining filenames2] [failed empty])
+    (cond [(empty? remaining)
+           (when (not (empty? failed))
+             (error 'run-tests
+                    "some files timed out: ~s" failed))]
           [else
            (define-values (next-bunch new-remaining)
              (split-at remaining (min num-to-run-in-parallel (length remaining))))
-           (run-bunch nonterm next-bunch)
-           (loop new-remaining)])))
+           (cond [(run-bunch nonterm next-bunch)
+                  (loop new-remaining failed)]
+                 [else 
+                  (loop new-remaining (append next-bunch failed))])])))
 
 ;; test a bunch of files at once:
 (define (run-bunch nonterm bunch)
   (define total-lines (apply + (map file-lines bunch)))
   (define pre-time (current-inexact-milliseconds))
+  (display (~a "Testing files containing "total-lines" lines of source code.\n"))
   (match-define (list _1 stdin _2 stderr control)
     (process/ports 
      dev-null
@@ -114,20 +122,35 @@
        (printf "~s\n" ans)
        ans)))
   (close-output-port stdin)
-  (control 'wait)
-  (define result (control 'status))
-  (define errtext (first (regexp-match #px".*" stderr)))
-  (close-input-port stderr)
-  (define errlines (only-errlines errtext))
-  (when (or (not (eq? 'done-ok result))
-            (not (empty? errlines)))
-    (error 
-     (format "test of files ~s failed with result ~s and stderr\n~a"
-             bunch result errtext)))
-  (define post-time (current-inexact-milliseconds))
-  (define elapsed (/ (- post-time pre-time) 1000.0))
-  (define lines-per-second (/ total-lines elapsed))
-  (printf "parsing ran at ~a lines per second\n" (~r #:precision 2 lines-per-second)))
+  (define seconds-to-wait (/ total-lines MIN-LINES-PER-SECOND))
+  (define wait-thread (thread (lambda () (control 'wait))))
+  (define wait-result
+    (sync/timeout seconds-to-wait wait-thread))
+  ;; kill the process if it times out:
+  (cond 
+    [(not wait-result)
+     ;; On Windows, this probably won't kill the process:
+     (control 'kill)
+     (display
+      (~a "*** TIMEOUT: processing of files aborted after waiting "(~r seconds-to-wait)" seconds (= "MIN-LINES-PER-SECOND" lines per second):\n"bunch"\n")
+      (current-error-port))
+     #f]
+    [else
+     
+     (define result (control 'status))
+     (define errtext (first (regexp-match #px".*" stderr)))
+     (close-input-port stderr)
+     (define errlines (only-errlines errtext))
+     (when (or (not (eq? 'done-ok result))
+               (not (empty? errlines)))
+       (error 
+        (format "test of files ~s failed with result ~s and stderr\n~a"
+                bunch result errtext)))
+     (define post-time (current-inexact-milliseconds))
+     (define elapsed (/ (- post-time pre-time) 1000.0))
+     (define lines-per-second (/ total-lines elapsed))
+     (printf "parsing ran at ~a lines per second\n" (~r #:precision 2 lines-per-second))
+     #t]))
 
 ;; this'll be slow, but probably not nearly as long as the parsing...
 (define (file-lines path)
@@ -147,7 +170,7 @@
 (run-tests "/Users/clements/tryrust/src/"
            parser-dont-try-list
            "prog"
-           16
+           8
            #;#px"zip-same-length.rs$")
 ;3:50:33 total 1-at-a-time
 ;1:27.62 8-at-a-time
