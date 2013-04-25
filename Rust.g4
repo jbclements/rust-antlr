@@ -96,7 +96,7 @@ struct_field
   ;
 
 enum_decl
-  | ENUM ident (LT (generic_decls)? GT)? LBRACE (enum_variant_decls (COMMA)?)? RBRACE
+  : ENUM ident (LT (generic_decls)? GT)? LBRACE (enum_variant_decls (COMMA)?)? RBRACE
   ;
 enum_variant_decls : enum_variant_decl COMMA enum_variant_decls | enum_variant_decl ;
 enum_variant_decl
