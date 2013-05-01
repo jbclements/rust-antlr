@@ -772,7 +772,8 @@ LIFETIME
 // the not-only-slashes restrictions is a real PITA:
 // must have at least one non-slash char
 OUTER_DOC_COMMENT : '///' '/' * NON_SLASH_OR_WS ~[\n]*
-  | '///' '/' * [ \r\n\t] ~[ \r\n\t] ~[\n]*
+  | '///' '/' * [ \r\t] ~[ \r\t] ~[\n]*
+  | '///' [ \t]*
     // again, we have to do a funny dance to fence out
     // only-stars.
     // CAN'T ABSTRACT OVER BLOCK_CHARS; learned this
