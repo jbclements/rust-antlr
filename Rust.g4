@@ -41,6 +41,8 @@ grammar Rust;
 
 import "xidstart" , "xidcont";
 
+/// <grammar>
+
 // you can either treat a program as a sequence of token-trees--this is
 // the "s-expression" approach to parsing--or as a prog.
 
@@ -348,7 +350,7 @@ expr_prefix : NOT expr_prefix
   | TILDE expr_prefix
   | expr_dot_or_call
   ;
-// refactoning to eliminate left-recursion would make this less readable...
+// refactoring to eliminate left-recursion would make this less readable...
 expr_dot_or_call
   : expr_dot_or_call DOT ident (MOD_SEP LT (generics)? GT)? (LPAREN (exprs)? RPAREN)?
   | expr_dot_or_call LPAREN (exprs)? RPAREN
@@ -370,7 +372,7 @@ expr_bottom
     // this will overlap with the whole-stmt macro-invocation rule...
     // I don't think I can bear to
   | macro
-  | path_with_colon_tps LBRACE field_inits (COMMA DOTDOT expr | (COMMA)?) RBRACE
+  | path_with_colon_tps LBRACE field_inits default_field_inits RBRACE
   | path_with_colon_tps
   | lit
   ;
@@ -450,7 +452,7 @@ expr_bottomRL
   | COPYTOK expr
     // this is an ambiguity, right?
   | macro
-  | path_with_colon_tps LBRACE field_inits (COMMA DOTDOT expr | (COMMA)?) RBRACE
+  | path_with_colon_tps LBRACE field_inits default_field_inits RBRACE
   | path_with_colon_tps
   | lit
   ;
@@ -514,11 +516,13 @@ expr_stmt_not_block
   ;
 
 field_inits : field_init | field_init COMMA field_inits ;
+default_field_inits : COMMA DOTDOT expr | (COMMA)? ;
 field_init : mutability ident COLON expr ;
 expr_vector : LBRACKET RBRACKET
   | LBRACKET expr (COMMA DOTDOT expr)? RBRACKET
   | LBRACKET expr COMMA exprs (COMMA)? RBRACKET ;
-expr_if : IF expr block (ELSE (block | expr_if))? ;
+expr_if : IF expr block (ELSE block_or_if)? ;
+block_or_if : block | expr_if ;
 expr_for : FOR expr_RBB (OR (maybetyped_args)? OR)? block;
 expr_do : DO expr_RBB (OR (maybetyped_args)? OR)? block;
 expr_while : WHILE expr block ;
@@ -658,6 +662,9 @@ nondelim
   // |  INTERPOLATED
   |  OUTER_DOC_COMMENT
   |  INNER_DOC_COMMENT;
+
+
+/// </grammar>
 
 // putting keywords in to simplify things:
 AS : 'as' ;
