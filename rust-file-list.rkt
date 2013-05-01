@@ -2,7 +2,8 @@
 
 ;; this file generates lists of rust files to test.
 (provide make-lexer-list
-         make-parser-list)
+         make-parser-list
+         make-file-name-list)
 
 ;; given the root of a rust tree, return a list of 
 ;; should-be-lexable files

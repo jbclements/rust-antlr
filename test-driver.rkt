@@ -31,9 +31,9 @@
 ;; the nonterminal specified by 'nonterm', running the given number in
 ;; parallel, and optionally skipping all files until finding one 
 ;; that matches the 'start-with-pat' pattern
-(define (run-tests directory skip-list nonterm num-to-run-in-parallel 
+(define (run-tests given-filenames nonterm num-to-run-in-parallel 
                    [start-with-pat #f])
-  (define filenames (make-file-name-list directory skip-list))
+  (define filenames (take given-filenames 640))
   (when (empty? filenames)
     (error 'run-tests
            "empty list of files to test"))
@@ -118,11 +118,15 @@
 (check-equal? (string-ends-with "abc" "abc") #t)
 (check-equal? (string-ends-with "abc" "zabc") #f)
 
-(run-tests "/Users/clements/tryrust/src/"
-           parser-dont-try-list
-           "prog"
-           8
+(run-tests (make-lexer-list "/Users/clements/tryrust/src/")
+           "tts"
+           32
            #;#px"zip-same-length.rs$")
+
+#;(run-tests (make-parser-list "/Users/clements/tryrust/src/")
+             "prog"
+             8
+             #;#px"zip-same-length.rs$")
 ;3:50:33 total 1-at-a-time
 ;1:27.62 8-at-a-time
 ;1:15.73 total 16-at-a-time

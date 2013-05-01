@@ -5,4 +5,4 @@
 
 (define lexer-files (make-lexer-list "/Users/clements/tryrust"))
 
-(map lex-file (take lexer-files 80))
+(map lex-file (take lexer-files 640))

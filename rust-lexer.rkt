@@ -14,7 +14,8 @@
   (let loop ()
     (define next-token (rust-lexer ip))
     (cond [(eq? (position-token-token next-token) 'EOF)
-           #t]
+           (begin (close-input-port ip)
+                  #t)]
           [else (loop)])))
 
 (define (lex-string string)
@@ -40,9 +41,15 @@
 
 (define rust-lexer
   (lexer-src-pos
-   [one-line-outer-doc-comment (token-OUTER_DOC_COMMENT lexeme)]
+   [(:or one-line-outer-doc-comment block-outer-doc-comment)
+    (token-OUTER_DOC_COMMENT lexeme)]
+   [(:or one-line-inner-doc-comment block-inner-doc-comment)
+    (token-INNER_DOC_COMMENT lexeme)]
+   
    ;; Skip comments, without accumulating extra position information
-   [(:or rust-whitespace comment) 
+   [(:or rust-whitespace 
+         one-line-comment
+         block-comment) 
     (return-without-pos (rust-lexer input-port))]
    
    
@@ -152,27 +159,28 @@ LIT_FLOAT
   [upper-alpha (:/ #\A #\Z)]
   [lower-alpha (:/ #\a #\z)]
   
+  [one-line-comment (:: #\/ #\/ to-end-of-line)]
   [one-line-outer-doc-comment
    (:or
     (:: "///" (:* "/") non-slash-or-ws to-end-of-line)
     (:: "///" (:* "/") ws-char non-ws-char to-end-of-line))]
-#|// the not-only-slashes restrictions is a real PITA:
-// must have at least one non-slash char
-OUTER_DOC_COMMENT : '///' '/' * NON_SLASH_OR_WS ~[\n]*
-  | '///' '/' * [ \r\n\t] ~[ \r\n\t] ~[\n]*
-    // again, we have to do a funny dance to fence out
-    // only-stars.
-    // CAN'T ABSTRACT OVER BLOCK_CHARS; learned this
-    // the hard way ... :(
-  | '/**' (~[*] | ('*'+ ~[*/]))* ~[*] (~[*] | ('*'+ ~[*/]))* '*'+ '/' ;
-INNER_DOC_COMMENT : '//!' ~[\n]*
-  | '/*!' (~[*] | ('*'+ ~[*/]))* '*'+ '/' ;
-
-// HELPER DEFINITIONS:
-
-WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs, newlines
-OTHER_LINE_COMMENT : '//' ~[\n] * -> skip ;
-OTHER_BLOCK_COMMENT : '/*' (~[*] | ('*'+ ~[*/]))* '*'+ '/' -> skip ;
+  [one-line-inner-doc-comment
+   (:: "//!" to-end-of-line)]
+  
+  [block-comment
+   (:: "/*" block-comment-continue block-comment-end)]
+  ;; do a funny dance here to prevent "/******/"
+  ;; I wonder if minus would be as fast?
+  [block-outer-doc-comment
+   (:: "/**" block-comment-continue 
+       non-star block-comment-continue block-comment-end)]
+  [block-inner-doc-comment
+   (:: "/*!" block-comment-continue block-comment-end)]
+  [block-comment-continue 
+   (:* (:or (:~ "*") (:: (:+ "*") (:~ "*" "/"))))]
+  [block-comment-end
+   (:: (:+ "*") "/")]
+#|
 SHEBANG_LINE : {at_beginning_of_file()}? '#!' ~[\n]* '\n' -> skip ;
 
 BINDIGIT : [0-1_] ;|#
@@ -189,10 +197,6 @@ LITFLOAT_TY : 'f' ('32'|'64')? ;
         (:: "u" hex-digit hex-digit hex-digit hex-digit)
         (:: "U" hex-digit hex-digit hex-digit hex-digit
             hex-digit hex-digit hex-digit hex-digit))]
-  #|
-
-LIT_CHAR :  '\'\\' ESCAPEDCHAR '\'' | '\'' . '\'' ;
-|#
   [lit-char (:or (:: "'\\" escaped-char "'")
                  (:: "'" (:~) "'"))]
   [str-char (:or (:~ #\\ #\") (:: #\\ str-escape))]
@@ -200,17 +204,10 @@ LIT_CHAR :  '\'\\' ESCAPEDCHAR '\'' | '\'' . '\'' ;
   [non-slash-or-ws (:~ #\space #\tab #\return #\newline #\/)]
   [ws-char (:or #\newline #\return #\tab #\space)]
   [non-ws-char (:~ #\newline #\return #\tab #\space)]
-  [to-end-of-line (:* (:~ #\newline))]
+  [non-star (:~ #\*)]
+  [to-end-of-line (:: (:* (:~ #\newline)) #\newline)]
   [rust-whitespace (:+ ws-char)]
   [comment (:or line-comment
                 #;inline-comment)]
-  [line-comment (:: #\/ #\/ (:* (:~ #\newline)) #\newline)]
-  [inline-comment (:: #\/ #\* 
-                      (:* (:or (:~ #\*)
-                               (:: #\* (:~ #\/ #\*))))
-                      (:+ #\*) #\/)]
   )
 
-
-(lex-string "/// a b c
-d e f")
