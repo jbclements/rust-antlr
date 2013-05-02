@@ -748,15 +748,15 @@ LIT_INT
   : LIT_CHAR
   | '0x' HEXDIGIT+ INTLIT_TY?
   | '0b' BINDIGIT+ INTLIT_TY?
-  | [0-9] DECDIGIT* INTLIT_TY?
+  | DECDIGIT DECDIGIT_CONT* INTLIT_TY?
   ;
 
 LIT_FLOAT
-  : [0-9] DECDIGIT* '.' {!followed_by_ident_or_dot()}?
+  : DECDIGIT DECDIGIT_CONT* '.' {!followed_by_ident_or_dot()}?
     // nb: digit following '.' can't be underscore.
-  | [0-9] DECDIGIT* '.' [0-9] DECDIGIT* LITFLOAT_EXP? LITFLOAT_TY?
-  | [0-9] DECDIGIT* LITFLOAT_EXP LITFLOAT_TY?
-  | [0-9] DECDIGIT* LITFLOAT_TY
+  | DECDIGIT DECDIGIT_CONT* '.' DECDIGIT DECDIGIT_CONT* LITFLOAT_EXP? LITFLOAT_TY?
+  | DECDIGIT DECDIGIT_CONT* LITFLOAT_EXP LITFLOAT_TY?
+  | DECDIGIT DECDIGIT_CONT* LITFLOAT_TY
   ;
 
 LIT_STR : '\"' STRCHAR* '\"' ;
@@ -790,10 +790,11 @@ OTHER_BLOCK_COMMENT : '/*' (~[*] | ('*'+ ~[*/]))* '*'+ '/' -> skip ;
 SHEBANG_LINE : {at_beginning_of_file()}? '#!' ~[\n]* '\n' -> skip ;
 
 BINDIGIT : [0-1_] ;
-DECDIGIT : [0-9_] ;
+DECDIGIT : [0-9] ;
+DECDIGIT_CONT : [0-9_] ;
 HEXDIGIT : [0-9a-fA-F_] ;
 INTLIT_TY : ('u'|'i') ('8'|'16'|'32'|'64')? ;
-LITFLOAT_EXP : [eE] [+-]? DECDIGIT+ ;
+LITFLOAT_EXP : [eE] [+-]? DECDIGIT_CONT+ ;
 LITFLOAT_TY : 'f' ('32'|'64')? ;
 
 ESCAPEDCHAR : 'n' | 'r' | 't' | '\\' | '\'' | '\"'
