@@ -4,11 +4,10 @@
          parser-tools/lex
          (prefix-in : parser-tools/lex-sre))
 
-(provide lex-file)
+(provide (all-defined-out))
 
 ;; lex a file into tokens, discard them
 (define (lex-file file)
-  (display (~a file "\n"))
   (define ip (open-input-file file))
   (port-count-lines! ip)
   (let loop ()
@@ -38,6 +37,8 @@
   (LIT_INT LIT_FLOAT LIT_STR IDENT UNDERSCORE STATIC_LIFETIME 
            LIFETIME OUTER_DOC_COMMENT INNER_DOC_COMMENT
            BINOPEQ))
+(define-tokens hack
+  (LIT_FLOAT_DOTDOT LIT_FLOAT_DOT_IDENT))
 
 (define rust-lexer
   (lexer-src-pos
@@ -125,45 +126,42 @@
    [ "#" 'POUND ]
    [ "$" 'DOLLAR ]
    
-   [(:: id-start (:* id-cont)) (token-IDENT lexeme)]
-   [(:: (:/ #\0 #\9) (:* dec-digit) (:? intlit-ty)) 
-    (token-LIT_INT lexeme)]
-   [lit-char (token-LIT_INT lexeme)]
-#|   LIT_INT
-  : LIT_CHAR
-  | '0x' HEXDIGIT+ INTLIT_TY?
-  | '0b' BINDIGIT+ INTLIT_TY?
-  | [0-9] DECDIGIT* INTLIT_TY?
-  ;|#
-
-   #|
-LIT_FLOAT
-  : [0-9] DECDIGIT* '.' {!followed_by_ident_or_dot()}?
-    // nb: digit following '.' can't be underscore.
-  | [0-9] DECDIGIT* '.' [0-9] DECDIGIT* LITFLOAT_EXP? LITFLOAT_TY?
-  | [0-9] DECDIGIT* LITFLOAT_EXP LITFLOAT_TY?
-  | [0-9] DECDIGIT* LITFLOAT_TY
-  ;
-|# 
+   [ident (token-IDENT lexeme)]
+   [(:or lit-char lit-hexint lit-binint lit-decint) (token-LIT_FLOAT lexeme)]
+   ;; to work around lack of lookahead, we make up a bogus double-token
+   ;; here and split it apart later:
+   [(:: dec-digit-start (:* dec-digit-cont) "..") (token-LIT_FLOAT_DOTDOT lexeme)]
+   [(:: dec-digit-start (:* dec-digit-cont) "." ident)
+    (token-LIT_FLOAT_DOT_IDENT lexeme)]
+   [(:: dec-digits ".") (token-LIT_FLOAT lexeme)]
+   [(:: dec-digits "." dec-digits maybe-litfloat-exp maybe-litfloat-ty) 
+    (token-LIT_FLOAT lexeme)]
+   [(:: dec-digits litfloat-exp maybe-litfloat-ty) (token-LIT_FLOAT lexeme)]
+   [(:: dec-digits litfloat-ty) (token-LIT_FLOAT lexeme)]
    [(:: "\"" (:* str-char) "\"") (token-LIT_STR lexeme)]
    ["_" 'UNDERSCORE]
    ["'static" 'STATIC_LIFETIME]
    ["'self" (token-LIFETIME "'self")]
-   [(:: "'" id-start (:* id-cont)) (token-LIFETIME lexeme)]
+   [(:: "'" ident) (token-LIFETIME lexeme)]
    [(eof) 'EOF]))
 
 (define-lex-abbrevs
-  ;; inadequate for unicode:
-  [id-start (:or lower-alpha upper-alpha #\_)]
-  [id-cont (:or id-start (:/ #\0 #\9))]
+  [ident (:: xid-start (:* xid-continue))]
+  [dec-digits (:: dec-digit-start (:* dec-digit-cont))]
+  [dec-digit-start (:/ #\0 #\9)]
+  [dec-digit-cont (:or dec-digit-start #\_)]
   [upper-alpha (:/ #\A #\Z)]
   [lower-alpha (:/ #\a #\z)]
-  
+  [lit-hexint (:: "0x" (:+ hex-digit) maybe-intlit-ty)]
+  [lit-binint (:: "0b" (:+ bin-digit) maybe-intlit-ty)]
+  [lit-decint (:: dec-digits maybe-intlit-ty)]
+  ;; different flavors of comments
   [one-line-comment (:: #\/ #\/ to-end-of-line)]
   [one-line-outer-doc-comment
    (:or
     (:: "///" (:* "/") non-slash-or-ws to-end-of-line)
-    (:: "///" (:* "/") ws-char non-ws-char to-end-of-line))]
+    (:: "///" (:* "/") (:or #\space #\tab) non-ws-char to-end-of-line)
+    (:: "///" (:* (:or #\space #\tab)) #\newline))]
   [one-line-inner-doc-comment
    (:: "//!" to-end-of-line)]
   
@@ -182,15 +180,15 @@ LIT_FLOAT
    (:: (:+ "*") "/")]
 #|
 SHEBANG_LINE : {at_beginning_of_file()}? '#!' ~[\n]* '\n' -> skip ;
-
-BINDIGIT : [0-1_] ;|#
+|#
+  [bin-digit (:or #\0 #\1 #\_)]
   [dec-digit (:or #\_ (:/ #\0 #\9))]
   [hex-digit (:or dec-digit (:/ #\a #\f) (:/ #\A #\F) #\_)]
-  [intlit-ty (:: (:or "u" "i") (:? (:or "8" "16" "32" "64")))]
-  #|
-LITFLOAT_EXP : [eE] [+-]? DECDIGIT+ ;
-LITFLOAT_TY : 'f' ('32'|'64')? ;
-|# 
+  [maybe-intlit-ty (:? (:: (:or "u" "i") (:? (:or "8" "16" "32" "64"))))]
+  [maybe-litfloat-exp (:? litfloat-exp)]
+  [litfloat-exp (:: (:or "e" "E") (:? (:or #\+ #\-)) (:+ dec-digit-cont))]
+  [maybe-litfloat-ty (:? litfloat-ty)]
+  [litfloat-ty (:: "f" (:? (:or "32" "64")))]
   [escaped-char 
    (:or "n" "r" "t" #\\ #\' #\"
         (:: "x" hex-digit hex-digit)
@@ -211,3 +209,4 @@ LITFLOAT_TY : 'f' ('32'|'64')? ;
                 #;inline-comment)]
   )
 
+(lex-string "ε")
