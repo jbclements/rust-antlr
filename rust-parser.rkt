@@ -10,7 +10,7 @@
          
          syntax/readerr)
 
-#;(define-syntax (generate-rust-parser stx)
+(define-syntax (generate-rust-parser stx)
   (syntax-case stx ()
     [(_)
      #`(parser
@@ -24,6 +24,10 @@
         #;(debug "/tmp/grammar-debug")
         (tokens empty-toks data hack)
         (grammar
-         #,@(magically-create-rules)))]))
+         ;; urg, I didn't expect that to work...
+         (tts ((tts*_1) #f))
+         #,@(datum->syntax
+             #'stx
+             (magically-create-rules))))]))
 
-#;(generate-rust-parser)
+(generate-rust-parser)

@@ -137,9 +137,7 @@
              (list
               name
               ((rewrite-pat-to-or-of-seqs $1)
-               (cons 'or (let ([ans $3])
-                           (printf "~s\n" ans)
-                           ans)))))])
+               (cons 'or $3))))])
     (pats [(pat-seq OR pats) (cons (cons 'seq $1) $3)]
           [(pat-seq) (list (cons 'seq $1))])
     (pat-seq [(one-pat pat-seq) (cons $1 $2)]
@@ -261,7 +259,7 @@
 (define (post-process-rules grammar)
   (for/list ([rule grammar])
     (match-define (list name rhses) rule)
-    (list (string->symbol name)
+    (cons (string->symbol name)
           (map post-process rhses))))
 
 (define (post-process los)
@@ -280,3 +278,5 @@
     (rs grammar-port)
     (filter (lambda (rule) (not (false? (second rule))))
             (hash-map aux-defn-bucket list)))))
+
+(magically-create-rules)
