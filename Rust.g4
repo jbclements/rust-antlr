@@ -533,7 +533,7 @@ match_final_clause
 match_clause
   : pats_or (IF expr)? FAT_ARROW (expr_RL COMMA | expr_stmt_not_block COMMA | expr_stmt_block (COMMA)? ) ;
 
-expr_lambda : OR (maybetyped_args)? OR expr ;
+expr_lambda : OR (maybetyped_args)? OR ret_ty expr ;
 
 // SELF and STATIC may be used as identifiers
 // not sure about underscore. should it even be a token?
