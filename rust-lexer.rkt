@@ -147,6 +147,9 @@
 
 (define-lex-abbrevs
   [ident (:: xid-start (:* xid-continue))]
+  ;; DARN! haven't committed xid-start to racket tree yet...
+  [xid-start (:or (:/ #\a #\z) (:/ #\A #\Z) #\_)]
+  [xid-continue (:or (:/ #\a #\z) (:/ #\A #\Z) (:/ #\0 #\9) #\_)]
   [dec-digits (:: dec-digit-start (:* dec-digit-cont))]
   [dec-digit-start (:/ #\0 #\9)]
   [dec-digit-cont (:or dec-digit-start #\_)]
