@@ -5,29 +5,33 @@
          parser-tools/lex
          parser-tools/yacc)
 
-#;(require rackunit
-         (prefix-in : parser-tools/lex-sre)
-         
-         syntax/readerr)
+(provide parse-file)
 
 (define-syntax (generate-rust-parser stx)
   (syntax-case stx ()
     [(_)
      #`(parser
         (src-pos)
-        (start tts)
+        (start prog)
         (end EOF)
         (error (lambda (a name val start end)
                  (error 'antlr-parser
                         "error-vals: ~e" 
                         (list a name val start end))))
-        #;(debug "/tmp/grammar-debug")
+        (debug "/tmp/grammar-debug")
         (tokens empty-toks data hack)
         (grammar
-         ;; urg, I didn't expect that to work...
-         (tts ((tts*_1) #f))
-         #,@(datum->syntax
-             #'stx
-             (magically-create-rules))))]))
+         #,@rust-rules)
+        )]))
 
-(generate-rust-parser)
+(define rust-parser
+  (generate-rust-parser))
+
+(define (parse-file f)
+  (call-with-input-file f
+    (lambda (port)
+      (rust-parser (lambda () (rust-lexer port))))))
+
+(parse-file "/tmp/f.rs")
+
+

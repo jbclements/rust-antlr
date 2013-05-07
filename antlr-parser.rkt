@@ -7,10 +7,10 @@
          syntax/readerr
          racket/generator)
 
-(provide magically-create-rules)
+(provide rust-rules)
 
 (define lines 
-  (file->lines "/Users/clements/rust-antlr/Rust.g4")
+  (file->lines "/Users/clements/rust-antlr/Rust-massaged.g4")
   #;(list "a" "b" "/// <foo>" ))
 
 (define ((parse-line tags) line)
@@ -167,6 +167,8 @@
                 "too late! name ~e already appears in the table"
                 name)]
         [(hash-set! aux-defn-bucket name #f)]))
+(define (reset-aux-defns!)
+  (set! aux-defn-bucket (make-hash)))
 
 ;; NOTE! I'VE ONLY IMPLEMENTED THE ONES I NEEDED, HERE...
 
@@ -231,7 +233,9 @@
 (define ((rewrite-pat-to-or-of-seqs name) pat)
   (match pat
     [(cons 'or pats)
-     (map (rewrite-pat-to-seq name) pats)]))
+     (map (rewrite-pat-to-seq name) pats)]
+    [(cons 'seq pats)
+     (list ((rewrite-pat-to-seq name) pat))]))
 
 (define ((rewrite-pat-to-seq name) pat)
   (match pat
@@ -255,6 +259,8 @@
 (check-equal? (hash-ref aux-defn-bucket "bogo*_1")
               '(() ("frongy" "bogo*_1")))
 
+(reset-aux-defns!)
+
 
 (define (post-process-rules grammar)
   (for/list ([rule grammar])
@@ -272,11 +278,10 @@
 
 (define grammar-port (open-input-string the-grammar-text))
 
-(define (magically-create-rules)
+(define rust-rules
   (post-process-rules
    (append
     (rs grammar-port)
     (filter (lambda (rule) (not (false? (second rule))))
             (hash-map aux-defn-bucket list)))))
 
-(magically-create-rules)
