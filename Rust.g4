@@ -564,7 +564,7 @@ lit
   ;
 
 // TOKEN TREES:
-tt : nondelim | delimited ;
+tt : non_delimiter | delimited ;
 delimited
   : parendelim
   | bracketdelim
@@ -572,8 +572,11 @@ delimited
 parendelim : LPAREN tt* RPAREN ;
 bracketdelim : LBRACKET tt* RBRACKET ;
 bracedelim : LBRACE tt* RBRACE ;
-    // putting in keywords to simplify things:
-nondelim
+// these two productions are provided for documentation:
+token : delimiter | non_delimiter ;
+delimiter : LPAREN | RPAREN | LBRACKET | RBRACKET | LBRACE | RBRACE ;
+non_delimiter : keyword | literal | ident_or_lifetime | doc_comment ;
+keyword
   : AS
   | BREAK
   | CONST
@@ -645,6 +648,10 @@ nondelim
   |  FAT_ARROW
   |  POUND
   |  DOLLAR
+  ;
+
+
+literal :
   // Literals
   |  LIT_INT
   // It's not necessary to distinguish these for parsing:
@@ -653,15 +660,21 @@ nondelim
   |  LIT_FLOAT
   //|  LIT_FLOAT_UNSUFFIXED
   |  LIT_STR
+  ;
+
+ident_or_lifetime :
   // Name components
   |  IDENT
   |  UNDERSCORE
   |  STATIC_LIFETIME
   |  LIFETIME
-  // Interpolation isn't present until after expansion
+  ;
+
+doc_comment :
   // |  INTERPOLATED
   |  OUTER_DOC_COMMENT
-  |  INNER_DOC_COMMENT;
+  |  INNER_DOC_COMMENT
+  ;
 
 
 /// </grammar>
