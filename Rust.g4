@@ -573,10 +573,11 @@ parendelim : LPAREN tt* RPAREN ;
 bracketdelim : LBRACKET tt* RBRACKET ;
 bracedelim : LBRACE tt* RBRACE ;
 // these two productions are provided for documentation:
-token : delimiter | non_delimiter ;
-delimiter : LPAREN | RPAREN | LBRACKET | RBRACKET | LBRACE | RBRACE ;
-non_delimiter : keyword | literal | ident_or_lifetime | doc_comment ;
-keyword
+//token : delimiter | non_delimiter ;
+//delimiter : LPAREN | RPAREN | LBRACKET | RBRACKET | LBRACE | RBRACE ;
+// GGRRRAAA! I can't break this definition up into multiple ones, or
+// ANTLR starts hanging. I've kind of had it with ANTLR.
+non_delimiter
   : AS
   | BREAK
   | CONST
@@ -648,10 +649,10 @@ keyword
   |  FAT_ARROW
   |  POUND
   |  DOLLAR
-  ;
-
-
-literal :
+//  ;
+//
+//
+//booty :
   // Literals
   |  LIT_INT
   // It's not necessary to distinguish these for parsing:
@@ -660,17 +661,17 @@ literal :
   |  LIT_FLOAT
   //|  LIT_FLOAT_UNSUFFIXED
   |  LIT_STR
-  ;
-
-ident_or_lifetime :
+//  ;
+//
+//ident_or_lifetime :
   // Name components
   |  IDENT
   |  UNDERSCORE
   |  STATIC_LIFETIME
   |  LIFETIME
-  ;
-
-doc_comment :
+//  ;
+//
+//doc_comment :
   // |  INTERPOLATED
   |  OUTER_DOC_COMMENT
   |  INNER_DOC_COMMENT
