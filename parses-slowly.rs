@@ -1,3 +1,5 @@
+// to see fast parsing, uncomment next line and comment out following one:
+// use a::b;
 use a::b::c;
 
 pub fn mk_pass(name: ~str, op: @fn(&str) -> ~str) -> Pass {
