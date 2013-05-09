@@ -9,7 +9,7 @@
 
 ;; if processing drops below this pace, indicate 
 ;; failure and continue with the next batch
-(define MIN-LINES-PER-SECOND 50)
+(define MIN-LINES-PER-SECOND 5)
 
 
 
@@ -118,14 +118,14 @@
 (check-equal? (string-ends-with "abc" "abc") #t)
 (check-equal? (string-ends-with "abc" "zabc") #f)
 
-(run-tests (make-lexer-list "/Users/clements/tryrust/src/")
+#;(run-tests (make-lexer-list "/Users/clements/tryrust/src/")
            "tts"
            32
            #;#px"zip-same-length.rs$")
 
-#;(run-tests (make-parser-list "/Users/clements/tryrust/src/")
+(run-tests (make-parser-list "/Users/clements/tryrust/src/")
              "prog"
-             8
+             2
              #;#px"zip-same-length.rs$")
 ;3:50:33 total 1-at-a-time
 ;1:27.62 8-at-a-time

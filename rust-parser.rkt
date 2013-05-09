@@ -18,7 +18,8 @@
                  (error 'antlr-parser
                         "error-vals: ~e" 
                         (list a name val start end))))
-        (debug "/tmp/grammar-debug")
+        (yacc-output "/tmp/foo.y")
+        #;(debug "/tmp/grammar-debug")
         (tokens empty-toks data hack)
         (grammar
          #,@rust-rules)
@@ -32,6 +33,6 @@
     (lambda (port)
       (rust-parser (lambda () (rust-lexer port))))))
 
-(parse-file "/tmp/f.rs")
+#;(parse-file "/tmp/f.rs")
 
 
