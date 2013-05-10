@@ -179,7 +179,7 @@
     ;; special-case for 1-ary case makes things 
     ;; *much* more readabale...
     [(list 'star (? string? s))
-     (define new-name (get-aux-defn-name (~a name "*")))
+     (define new-name (get-aux-defn-name (~a name "_star")))
      (hash-set! aux-defn-bucket
                 new-name
                 `(() 
@@ -187,7 +187,7 @@
      new-name]
     [(list 'star pat)
      (define lifted-rhs-seq ((rewrite-pat-to-seq name) pat))
-     (define new-name (get-aux-defn-name (~a name "*")))
+     (define new-name (get-aux-defn-name (~a name "_star")))
      (hash-set! aux-defn-bucket
                 new-name
                 `(() 
@@ -195,14 +195,14 @@
      new-name]
     ;; special-case to improve readability
     [(list 'plus (? string? s))
-     (define new-name (get-aux-defn-name (~a name "+")))
+     (define new-name (get-aux-defn-name (~a name "_plus")))
      (hash-set! aux-defn-bucket
                 new-name
                 `((,s)
                   (,s ,new-name)))
      new-name]
     [(list 'huh (? string? s))
-     (define new-name (get-aux-defn-name (~a name "*")))
+     (define new-name (get-aux-defn-name (~a name "_star")))
      (hash-set! aux-defn-bucket
                 new-name
                 `(() 
@@ -210,7 +210,7 @@
      new-name]
     [(list 'huh pat)
      (define lifted-rhs-seq ((rewrite-pat-to-seq name) pat))
-     (define new-name (get-aux-defn-name (~a name "?")))
+     (define new-name (get-aux-defn-name (~a name "_huh")))
      (hash-set! aux-defn-bucket
                 new-name
                 `(()
@@ -255,9 +255,9 @@
 (check-equal? ((rewrite-pat-to-nonterm "bogo") "attrs_and_vis")
               "attrs_and_vis")
 (check-equal? ((rewrite-pat-to-nonterm "bogo") '(star "frongy"))
-              "bogo*_1")
-(check-equal? (hash-ref aux-defn-bucket "bogo*_1")
-              '(() ("frongy" "bogo*_1")))
+              "bogo_star_1")
+(check-equal? (hash-ref aux-defn-bucket "bogo_star_1")
+              '(() ("frongy" "bogo_star_1")))
 
 (reset-aux-defns!)
 
