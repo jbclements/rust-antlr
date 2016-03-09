@@ -15,7 +15,6 @@ Rust code.
 The full parser also appears to parse all readily-available Rust code, although
 it's SO SLOW that I'm having trouble checking.
 
-
 To try it out:
 
 - install antlr 4 jar, put it in your classpath
@@ -29,3 +28,7 @@ or, if you want to parse using the full program parser, replace this last line w
 This generates no output on success, and error output on failure.
 
 If you want to see the tree produced by the parser, you can pass the "-tree" argument.
+
+
+This work is licensed under the Apache License, version 2.0
+
